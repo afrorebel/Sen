@@ -1,77 +1,82 @@
-# Sen — AEO & GEO Audit Tool
+# AEOGrowthLeads
 
-Sen audits a website for **Answer Engine Optimization (AEO)** and **Generative Engine Optimization (GEO)**. It shows how ready the site is to be crawled, understood, trusted and cited by ChatGPT, Claude, Perplexity, Gemini, Copilot and Google AI Overviews. You get a 0–100 score, a breakdown by category and a prioritised action plan.
+AI visibility tracking, AEO/GEO site audits and done-for-you delivery, at **aeogrowthleads.com**.
 
-## What it checks
+Businesses see whether ChatGPT, Google AI Mode, Perplexity, Gemini and Claude name them when buyers ask questions, who gets recommended instead, and which sources the engines cite. Your team delivers done-for-you work from the same platform, and clients follow it in a portal.
 
-| Category | Weight | Signals |
+## What's in the app
+
+| Area | What it does |
+|---|---|
+| **Free AEO audit** (`/`) | Public lead magnet. Scores any URL on AI crawler access, structured data, answer-ready content, trust and technical signals, then links to sign-up. |
+| **Brands & prompts** | Each brand has a domain, category, location, competitors and the buyer prompts to track. A prompt suggester builds lists from the playbook's four buckets (best/top, problem, comparison, local). |
+| **AI visibility tracking** | Weekly or daily checks of every prompt × engine through DataForSEO. Records whether the brand was named, its rank among the brands named, and whether its site was cited. |
+| **Dashboards** | Mention rate, citation rate, share of voice, average rank, trend over time, per-engine results, competitor share-of-voice bars, and the full answer text for every check. |
+| **Cited sources** | The domains and pages AI engines cite for your prompts: the Reddit threads, listicles and directories to target. |
+| **Site audit** | The AEO audit saved per brand, so it can be re-run over time. |
+| **Done-for-you** | Task board (to do → in progress → review → done), a one-click 90-day onboarding plan, comments, internal-only tasks, and a deliverables log (articles, schema, llms.txt, Google Business posts, reports…). |
+| **Client portal** | Read-only client logins. Clients see results, client-visible tasks and deliverables, and can comment. |
+| **Admin** (staff) | All workspaces, plans, done-for-you flag, list-price MRR, DataForSEO spend, and creating client workspaces with portal logins. |
+
+## Plans
+
+Defined in `lib/plans.ts`:
+
+| Plan | Price | Limits |
 |---|---|---|
-| **AI Crawler Access** | 25 | robots.txt rules for 16 AI bots (OAI-SearchBot, ChatGPT-User, GPTBot, Claude-SearchBot, Claude-User, ClaudeBot, PerplexityBot, Google-Extended, Bingbot, Applebot-Extended…), live CDN/WAF blocking probes as GPTBot/ClaudeBot/PerplexityBot, `noindex`/`nosnippet`/`noai` directives, XML sitemap + `<lastmod>`, `llms.txt` |
-| **Answer-Ready Content** | 25 | content present without JavaScript, depth, single H1, heading hierarchy, question-style headings, answer-first summary, paragraph length, lists/tables, statistics, citations & quotes, readability, image alt text |
-| **Structured Data & Entity** | 20 | valid JSON-LD, Organization/LocalBusiness, `sameAs` profile links, WebSite, FAQPage, Product/Service/Article, BreadcrumbList, reviews/ratings |
-| **Authority & Trust (E-E-A-T)** | 15 | About page, NAP contact details, authorship, freshness dates, social/review profiles, testimonials/case studies, privacy/terms |
-| **Technical Foundations** | 15 | HTTPS, title, meta description, canonical, `lang`, Open Graph, viewport, response time, HTML weight |
-| **AI Visibility (GEO)** *(optional)* | 25 | Claude with live web search answers buyer-intent questions generated from your site. The tool measures brand **mention rate**, **citation rate**, **share of voice** and which competitors get recommended instead. |
+| Free | $0 | 1 brand, 10 prompts, 2 engines, weekly |
+| Starter | $49/mo | 1 brand, 50 prompts, 3 engines, weekly |
+| Growth | $129/mo | 3 brands, 150 prompts, 4 engines, daily or weekly |
+| Agency | $349/mo | 10 brands, 400 prompts, 5 engines, client logins |
+| Done For You | from $799/mo | Full service plus the platform |
 
-Score bands match common industry tools: **0–40 Low**, **41–70 Moderate**, **71–100 High** readiness.
+Limits are enforced when brands, prompts and engines are added. For now, plans are set by staff on the Admin page; Stripe self-serve billing is the next step.
 
-## Getting started
+## How the tracking works
+
+```
+Hostinger cron (every 5 min) → GET /api/cron?key=…
+  → start runs for brands whose next check is due (one check per prompt × engine)
+  → claim pending checks (FOR UPDATE SKIP LOCKED, so overlapping ticks are safe)
+  → ask the engine through DataForSEO → analyze → save → mark the run done
+```
+
+| Engine | DataForSEO endpoint | Approx. cost per check |
+|---|---|---|
+| ChatGPT | `ai_optimization/chat_gpt/llm_scraper/live/advanced` | $0.004 |
+| Gemini | `ai_optimization/gemini/llm_scraper/live/advanced` | $0.004 |
+| Google AI Mode | `serp/google/ai_mode/live/advanced` | ~$0.004 |
+| Perplexity | `ai_optimization/perplexity/llm_responses/live` (sonar) | ~$0.01 |
+| Claude | `ai_optimization/claude/llm_responses/live` (web search on) | ~$0.01–0.03 |
+
+Costs are DataForSEO's published prices. The actual spend of each run is stored and shown on the Admin page. Without credentials the app runs in **demo mode** with simulated answers.
+
+## Local development
 
 ```bash
 npm install
-cp .env.example .env.local   # optional: add ANTHROPIC_API_KEY to enable the AI visibility test
-npm run dev                  # http://localhost:3000
+cp .env.example .env.local        # set DATABASE_URL (local Postgres or Supabase) and CRON_SECRET
+npm run db:migrate
+npm run dev                        # http://localhost:3000, then sign up (first account = admin)
+curl "localhost:3000/api/cron?key=$CRON_SECRET"   # process queued checks
 ```
 
-### CLI
-
-```bash
-npm run audit -- example.com
-npm run audit -- example.com --brand "Acme" --no-visibility
-npm run audit -- example.com --json > report.json
-```
-
-### API
-
-```bash
-curl -X POST http://localhost:3000/api/audit \
-  -H 'content-type: application/json' \
-  -d '{"url":"example.com","brand":"Acme","visibility":true}'
-```
-
-This returns an `AuditReport` JSON object (see `lib/audit/types.ts`).
-
-## AI visibility test
-
-When `ANTHROPIC_API_KEY` is set, the audit also:
-
-1. Asks Claude to write 5 realistic questions a prospective customer would ask, based on the homepage. The brand name is never included.
-2. Answers each question with Claude and the `web_search` server tool, the same way an AI assistant would.
-3. Extracts every brand recommended in each answer. It records whether you were mentioned, your rank, whether your domain was retrieved or cited, and which competitors appeared.
-
-The model defaults to `claude-opus-5`; override it with `AEO_VISIBILITY_MODEL`. Server-side refusal fallbacks are enabled. A full probe makes about 7 API calls plus up to 15 web searches, so expect it to add 30–90 seconds.
+Deployment on Hostinger: see [DEPLOY-HOSTINGER.md](DEPLOY-HOSTINGER.md).
 
 ## Project layout
 
 ```
 app/
-  page.tsx            landing page + audit form
-  report.tsx          report UI (score, categories, quick wins, visibility, crawlers, action plan, checks)
-  api/audit/route.ts  POST /api/audit
-lib/audit/
-  index.ts            orchestrator, category weights, scoring, action-plan ranking
-  context.ts          fetches page, robots.txt, llms.txt, sitemap, bot probes; parses HTML/JSON-LD
-  fetcher.ts          fetch with timeouts, size cap, manual redirects and SSRF protection
-  robots.ts           RFC 9309 robots.txt parser
-  visibility.ts       Claude + web search GEO probe
-  checks/             crawler, content, schema, trust, technical checks
-scripts/audit.ts      CLI
+  page.tsx, free-audit.tsx, report.tsx   public free audit
+  pricing/, login/, signup/              marketing + auth
+  app/o/[orgId]/…                        workspace: brands, brand dashboard, checks, work (DFY), team
+  admin/                                 staff admin
+  actions/                               server actions (auth, brands, work/admin)
+  api/cron, api/audit                    cron runner, audit API
+lib/
+  db/schema.ts                           Drizzle schema (Postgres); migrations in drizzle/
+  auth.ts                                sessions, passwords, org access rules
+  plans.ts, locations.ts                 plan limits, markets, prompt suggestions
+  tracking/                              DataForSEO client, answer analysis, runner, metrics
+  audit/                                 AEO site audit engine
 ```
-
-## Adding a check
-
-Each check returns a `CheckResult` built with `check()` from `lib/audit/context.ts`: a status (`pass`/`warn`/`fail`/`info`), an optional partial `score`, an `impact`, an `effort` and a `weight` within its category. The scoring and action-plan ranking pick it up automatically. Priority is `impact × weight × (1 − score) ÷ effort`.
-
-## Deploying
-
-This is a standard Next.js app, so it deploys to Vercel or any Node host. The audit route runs on the Node.js runtime with `maxDuration = 300` to leave room for the visibility probe. The fetcher blocks private and loopback addresses on every redirect hop, so the public endpoint can't be used to reach internal services. Add rate limiting before you expose it publicly.

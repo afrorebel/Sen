@@ -1,0 +1,206 @@
+"use server";
+
+import { and, count, eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { after } from "next/server";
+import { z } from "zod";
+import { requireOrg, requireUser } from "@/lib/auth";
+import { runAudit } from "@/lib/audit";
+import { db } from "@/lib/db";
+import { audits, brands, prompts, type Competitor } from "@/lib/db/schema";
+import { countryByIso, inferIntent } from "@/lib/locations";
+import { defaultEngines, planFor } from "@/lib/plans";
+import { normalizeDomain } from "@/lib/tracking/analyze";
+import { isEngine } from "@/lib/tracking/engines";
+import { processPending, startRun } from "@/lib/tracking/runner";
+import type { FormState } from "./auth";
+
+function parseCompetitors(raw: string): Competitor[] {
+  return raw
+    .split(/\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 20)
+    .map((line) => {
+      const [name, domain] = line.split(/\s*[|,]\s*/);
+      return domain ? { name: name.trim(), domain: normalizeDomain(domain) } : { name: name.trim() };
+    });
+}
+
+function parsePromptLines(raw: string): string[] {
+  return [...new Set(raw.split(/\n/).map((l) => l.trim()).filter((l) => l.length >= 5))].map((l) => l.slice(0, 480));
+}
+
+async function editableOrg(orgId: string) {
+  const user = await requireUser();
+  const access = await requireOrg(user, orgId);
+  if (!access.canEdit) throw new Error("You have view-only access to this workspace");
+  return { user, ...access };
+}
+
+async function editableBrand(brandId: string) {
+  const user = await requireUser();
+  const [brand] = await db.select().from(brands).where(eq(brands.id, brandId)).limit(1);
+  if (!brand) throw new Error("Brand not found");
+  const access = await requireOrg(user, brand.orgId);
+  if (!access.canEdit) throw new Error("You have view-only access to this workspace");
+  return { user, brand, ...access };
+}
+
+async function promptCount(orgId: string) {
+  const [row] = await db
+    .select({ n: count() })
+    .from(prompts)
+    .innerJoin(brands, eq(brands.id, prompts.brandId))
+    .where(and(eq(brands.orgId, orgId), eq(prompts.active, true)));
+  return row?.n ?? 0;
+}
+
+const BrandSchema = z.object({
+  name: z.string().trim().min(1, "Enter the brand name").max(120),
+  domain: z.string().trim().min(3, "Enter the website domain").max(200),
+  category: z.string().trim().max(120).default(""),
+  country: z.string().default("US"),
+  city: z.string().trim().max(80).optional(),
+  aliases: z.string().default(""),
+  competitors: z.string().default(""),
+  prompts: z.string().default(""),
+});
+
+export async function createBrand(orgId: string, _: FormState, form: FormData): Promise<FormState> {
+  const { org } = await editableOrg(orgId);
+  const parsed = BrandSchema.safeParse(Object.fromEntries(form));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const input = parsed.data;
+  const plan = planFor(org.plan);
+
+  const [{ n: brandCount }] = await db.select({ n: count() }).from(brands).where(eq(brands.orgId, orgId));
+  if (brandCount >= plan.brands) {
+    return { error: `Your ${plan.name} plan includes ${plan.brands} brand${plan.brands > 1 ? "s" : ""}. Upgrade to add more.` };
+  }
+
+  const promptLines = parsePromptLines(input.prompts);
+  const room = plan.prompts - (await promptCount(orgId));
+  if (promptLines.length > room) {
+    return { error: `Your plan has room for ${room} more prompt(s); you entered ${promptLines.length}.` };
+  }
+
+  const country = countryByIso(input.country);
+  const [brand] = await db
+    .insert(brands)
+    .values({
+      orgId,
+      name: input.name,
+      domain: normalizeDomain(input.domain),
+      category: input.category,
+      aliases: input.aliases.split(/[,\n]/).map((a) => a.trim()).filter(Boolean).slice(0, 10),
+      competitors: parseCompetitors(input.competitors),
+      locationCode: country.code,
+      countryIso: country.iso,
+      city: input.city || null,
+      engines: defaultEngines(plan),
+      frequency: "weekly",
+      nextRunAt: null,
+    })
+    .returning({ id: brands.id });
+
+  if (promptLines.length) {
+    await db.insert(prompts).values(promptLines.map((text) => ({ brandId: brand.id, text, intent: inferIntent(text, input.city) })));
+    await startRun(brand.id, "manual");
+    after(() => processPending({ budgetMs: 240_000 }).catch(console.error));
+  }
+  redirect(`/app/o/${orgId}/b/${brand.id}`);
+}
+
+const SettingsSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  domain: z.string().trim().min(3).max(200),
+  category: z.string().trim().max(120).default(""),
+  country: z.string().default("US"),
+  city: z.string().trim().max(80).optional(),
+  aliases: z.string().default(""),
+  competitors: z.string().default(""),
+  frequency: z.enum(["weekly", "daily"]),
+});
+
+export async function updateBrand(brandId: string, _: FormState, form: FormData): Promise<FormState> {
+  const { brand, org } = await editableBrand(brandId);
+  const parsed = SettingsSchema.safeParse(Object.fromEntries(form));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const input = parsed.data;
+  const plan = planFor(org.plan);
+
+  const engines = form.getAll("engines").map(String).filter(isEngine);
+  if (engines.length === 0) return { error: "Choose at least one AI engine" };
+  if (engines.length > plan.engineSlots) {
+    return { error: `Your ${plan.name} plan tracks up to ${plan.engineSlots} engines per brand.` };
+  }
+  if (!plan.frequencies.includes(input.frequency)) {
+    return { error: `Daily tracking is available on Growth and above.` };
+  }
+
+  const country = countryByIso(input.country);
+  await db
+    .update(brands)
+    .set({
+      name: input.name,
+      domain: normalizeDomain(input.domain),
+      category: input.category,
+      aliases: input.aliases.split(/[,\n]/).map((a) => a.trim()).filter(Boolean).slice(0, 10),
+      competitors: parseCompetitors(input.competitors),
+      locationCode: country.code,
+      countryIso: country.iso,
+      city: input.city || null,
+      engines,
+      frequency: input.frequency,
+    })
+    .where(eq(brands.id, brandId));
+  revalidatePath(`/app/o/${brand.orgId}/b/${brandId}`);
+  return { ok: "Settings saved" };
+}
+
+export async function addPrompts(brandId: string, _: FormState, form: FormData): Promise<FormState> {
+  const { brand, org } = await editableBrand(brandId);
+  const lines = parsePromptLines(String(form.get("prompts") ?? ""));
+  const intent = String(form.get("intent") ?? "auto");
+  if (!lines.length) return { error: "Enter at least one prompt (one per line)" };
+  const plan = planFor(org.plan);
+  const room = plan.prompts - (await promptCount(org.id));
+  if (lines.length > room) return { error: `Your plan has room for ${room} more prompt(s).` };
+  await db.insert(prompts).values(
+    lines.map((text) => ({ brandId, text, intent: intent === "auto" ? inferIntent(text, brand.city) : intent })),
+  );
+  // A brand created without prompts has no schedule yet; start it now.
+  if (!brand.nextRunAt) await db.update(brands).set({ nextRunAt: new Date() }).where(eq(brands.id, brandId));
+  revalidatePath(`/app/o/${brand.orgId}/b/${brandId}`);
+  return { ok: `Added ${lines.length} prompt(s). They'll be checked on the next run.` };
+}
+
+export async function removePrompt(promptId: string) {
+  const [row] = await db.select({ brandId: prompts.brandId }).from(prompts).where(eq(prompts.id, promptId)).limit(1);
+  if (!row) return;
+  const { brand } = await editableBrand(row.brandId);
+  await db.update(prompts).set({ active: false }).where(eq(prompts.id, promptId));
+  revalidatePath(`/app/o/${brand.orgId}/b/${brand.id}`);
+}
+
+export async function runNow(brandId: string) {
+  const { brand } = await editableBrand(brandId);
+  await startRun(brandId, "manual");
+  after(() => processPending({ budgetMs: 240_000 }).catch(console.error));
+  revalidatePath(`/app/o/${brand.orgId}/b/${brandId}`);
+}
+
+export async function runBrandAudit(brandId: string) {
+  const { brand } = await editableBrand(brandId);
+  const report = await runAudit(brand.domain, { brand: brand.name, visibility: false });
+  await db.insert(audits).values({ brandId, url: report.finalUrl, score: report.overall, report });
+  revalidatePath(`/app/o/${brand.orgId}/b/${brandId}`);
+}
+
+export async function deleteBrand(brandId: string) {
+  const { brand } = await editableBrand(brandId);
+  await db.delete(brands).where(eq(brands.id, brandId));
+  redirect(`/app/o/${brand.orgId}`);
+}

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Sen — AEO & GEO Audit",
+  title: "AEOGrowthLeads — Get named in AI answers",
   description:
     "Free AEO and GEO audit: see how ready your website is to be crawled, understood and cited by ChatGPT, Claude, Perplexity, Gemini and Google AI Overviews.",
 };
