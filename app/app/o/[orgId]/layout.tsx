@@ -21,7 +21,7 @@ export default async function OrgLayout({ children, params }: { children: React.
           <Link href={base}>Brands</Link>
           {(org.doneForYou || role !== "client") && <Link href={`${base}/work`}>{org.doneForYou ? "Done-for-you work" : "Tasks"}</Link>}
           {role === "owner" && <Link href={`${base}/team`}>Team & clients</Link>}
-          {role !== "client" && <Link href="/pricing">Plans</Link>}
+          {role === "owner" && <Link href={`${base}/billing`}>Billing</Link>}
         </nav>
       </aside>
       <main className="org-main">{children}</main>

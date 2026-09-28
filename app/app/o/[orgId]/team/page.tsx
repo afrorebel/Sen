@@ -75,9 +75,9 @@ export default async function TeamPage({ params }: { params: Promise<{ orgId: st
               <option value="client">Client (view only)</option>
               <option value="member">Team member (can edit)</option>
             </select>
-            <input name="password" type="text" placeholder="Temporary password (8+ characters)" minLength={8} required />
+            <input name="password" type="text" placeholder="Temporary password (optional)" minLength={8} />
           </div>
-          <p className="hint">Share the email and temporary password with them. Existing accounts are simply added.</p>
+          <p className="hint">Leave the password blank to email them an invite link to set their own. Existing accounts are simply added.</p>
           <SubmitButton>Add person</SubmitButton>
         </ActionForm>
       </section>

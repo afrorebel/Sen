@@ -33,6 +33,21 @@ export const sessions = pgTable("sessions", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });
 
+export const passwordResets = pgTable(
+  "password_resets",
+  {
+    /** SHA-256 of the emailed token. */
+    id: text("id").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("password_resets_user_idx").on(t.userId, t.createdAt)],
+);
+
 export const organizations = pgTable("organizations", {
   id: id(),
   name: text("name").notNull(),
@@ -41,6 +56,11 @@ export const organizations = pgTable("organizations", {
   doneForYou: boolean("done_for_you").notNull().default(false),
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
+  /** Mirrors Stripe: active, trialing, past_due, canceled, … (null = never subscribed). */
+  subscriptionStatus: text("subscription_status"),
+  billingInterval: text("billing_interval").$type<"month" | "year">(),
+  currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
+  cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
   createdAt: createdAt(),
 });
 

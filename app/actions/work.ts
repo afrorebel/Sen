@@ -3,7 +3,10 @@
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { hashPassword, requireOrg, requireStaff, requireUser } from "@/lib/auth";
+import { randomBytes } from "node:crypto";
+import { createPasswordToken, hashPassword, requireOrg, requireStaff, requireUser } from "@/lib/auth";
+import { sendInviteEmail } from "@/lib/email";
+import { appUrl } from "@/lib/url";
 import { db } from "@/lib/db";
 import {
   brands,
@@ -33,6 +36,24 @@ async function brandInOrg(orgId: string, brandId: string | null) {
 }
 
 const workPath = (orgId: string) => `/app/o/${orgId}/work`;
+
+/**
+ * Finds or creates a user. New users without a password get an unusable one and an
+ * invite email with a 3-day "set your password" link. Returns whether an invite was sent.
+ */
+async function ensureUser(input: { name: string; email: string; password?: string; workspace: string }) {
+  const [existing] = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
+  if (existing) return { user: existing, invited: false };
+  const password = input.password || randomBytes(32).toString("hex");
+  const [user] = await db
+    .insert(users)
+    .values({ name: input.name, email: input.email, passwordHash: await hashPassword(password) })
+    .returning();
+  if (input.password) return { user, invited: false };
+  const token = await createPasswordToken(user.id, 72);
+  await sendInviteEmail(user.email, user.name, input.workspace, `${await appUrl()}/reset-password?token=${token}`);
+  return { user, invited: true };
+}
 
 const TaskSchema = z.object({
   title: z.string().trim().min(1, "Give the task a title").max(200),
@@ -123,30 +144,34 @@ const MemberSchema = z.object({
   name: z.string().trim().min(1, "Enter a name").max(100),
   email: z.string().trim().toLowerCase().email("Enter a valid email"),
   role: z.enum(["member", "client"]),
-  password: z.string().min(8, "Temporary password needs 8+ characters").max(200),
+  password: z.string().max(200).optional().refine((v) => !v || v.length >= 8, "Temporary password needs 8+ characters"),
 });
 
 /** Adds a teammate or a read-only client login. Existing users are simply linked. */
 export async function addMember(orgId: string, _: FormState, form: FormData): Promise<FormState> {
-  const { role } = await editor(orgId);
+  const { role, org } = await editor(orgId);
   if (role !== "owner") return { error: "Only workspace owners can add people" };
   const parsed = MemberSchema.safeParse(Object.fromEntries(form));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const m = parsed.data;
 
-  let [user] = await db.select().from(users).where(eq(users.email, m.email)).limit(1);
-  if (!user) {
-    [user] = await db
-      .insert(users)
-      .values({ name: m.name, email: m.email, passwordHash: await hashPassword(m.password) })
-      .returning();
+  let result;
+  try {
+    result = await ensureUser({ name: m.name, email: m.email, password: m.password, workspace: org.name });
+  } catch (err) {
+    console.error("Invite email failed", err);
+    return { error: "We couldn't send the invite email. Check the email settings or set a temporary password." };
   }
   await db
     .insert(memberships)
-    .values({ userId: user.id, orgId, role: m.role as MemberRole })
+    .values({ userId: result.user.id, orgId, role: m.role as MemberRole })
     .onConflictDoUpdate({ target: [memberships.userId, memberships.orgId], set: { role: m.role } });
   revalidatePath(`/app/o/${orgId}/team`);
-  return { ok: `${m.name} can now log in with ${m.email}` };
+  return {
+    ok: result.invited
+      ? `Invite sent to ${m.email}. They'll set their own password.`
+      : `${m.name} can now log in with ${m.email}`,
+  };
 }
 
 export async function removeMember(orgId: string, userId: string) {
@@ -182,23 +207,29 @@ export async function createClientOrg(_: FormState, form: FormData): Promise<For
   // Staff who create the workspace are added so it shows in their switcher.
   await db.insert(memberships).values({ userId: staff.id, orgId: org.id, role: "owner" });
 
+  let invited = false;
   if (c.ownerEmail) {
-    if (!c.ownerPassword || c.ownerPassword.length < 8) return { error: "Set an 8+ character temporary password for the client" };
-    let [user] = await db.select().from(users).where(eq(users.email, c.ownerEmail)).limit(1);
-    if (!user) {
-      [user] = await db
-        .insert(users)
-        .values({ name: c.ownerName || c.name, email: c.ownerEmail, passwordHash: await hashPassword(c.ownerPassword) })
-        .returning();
+    if (c.ownerPassword && c.ownerPassword.length < 8) return { error: "Temporary passwords need 8+ characters" };
+    try {
+      const result = await ensureUser({
+        name: c.ownerName || c.name,
+        email: c.ownerEmail,
+        password: c.ownerPassword || undefined,
+        workspace: c.name,
+      });
+      invited = result.invited;
+      // Done-for-you clients get a portal login; self-serve customers own their workspace.
+      await db
+        .insert(memberships)
+        .values({ userId: result.user.id, orgId: org.id, role: doneForYou ? "client" : "owner" })
+        .onConflictDoNothing();
+    } catch (err) {
+      console.error("Invite email failed", err);
+      return { error: `Created ${c.name}, but the invite email failed. Add them from the Team page.` };
     }
-    // Done-for-you clients get a portal login; self-serve customers own their workspace.
-    await db
-      .insert(memberships)
-      .values({ userId: user.id, orgId: org.id, role: doneForYou ? "client" : "owner" })
-      .onConflictDoNothing();
   }
   revalidatePath("/admin");
-  return { ok: `Created ${c.name}` };
+  return { ok: invited ? `Created ${c.name} and emailed ${c.ownerEmail} an invite` : `Created ${c.name}` };
 }
 
 export async function updateOrgPlan(orgId: string, form: FormData) {

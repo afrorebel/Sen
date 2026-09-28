@@ -1,7 +1,8 @@
 import "server-only";
 import { and, eq, inArray, lte, sql } from "drizzle-orm";
 import { db } from "../db";
-import { brands, checks, prompts, runs, type Brand } from "../db/schema";
+import { brands, checks, organizations, prompts, runs, type Brand } from "../db/schema";
+import { planFor } from "../plans";
 import { analyzeAnswer } from "./analyze";
 import { askEngine } from "./dataforseo";
 import { isEngine } from "./engines";
@@ -26,11 +27,17 @@ export async function startRun(brandId: string, trigger: "schedule" | "manual" =
       .limit(1);
     if (active) return { runId: active.id, created: false };
 
+    // Enforce the current plan at run time too, so a downgrade stops over-limit usage.
+    const [org] = await tx.select({ plan: organizations.plan }).from(organizations).where(eq(organizations.id, brand.orgId));
+    const plan = planFor(org?.plan ?? "free");
     const activePrompts = await tx
       .select({ id: prompts.id })
       .from(prompts)
-      .where(and(eq(prompts.brandId, brandId), eq(prompts.active, true)));
-    const engines = brand.engines.filter(isEngine);
+      .where(and(eq(prompts.brandId, brandId), eq(prompts.active, true)))
+      .orderBy(prompts.createdAt)
+      .limit(plan.prompts);
+    const engines = brand.engines.filter(isEngine).slice(0, plan.engineSlots);
+    if (brand.frequency === "daily" && !plan.frequencies.includes("daily")) brand.frequency = "weekly";
     const total = activePrompts.length * engines.length;
 
     await tx.update(brands).set({ nextRunAt: nextRunFrom(brand) }).where(eq(brands.id, brandId));

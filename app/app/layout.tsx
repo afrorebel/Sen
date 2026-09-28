@@ -12,7 +12,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </Link>
         <nav>
           {user.isStaff && <Link href="/admin">Admin</Link>}
-          <span className="muted small who">{user.email}</span>
+          <Link href="/app/account" className="muted small who">{user.email}</Link>
           <form action={logout}>
             <button className="btn ghost small">Log out</button>
           </form>

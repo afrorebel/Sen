@@ -22,7 +22,12 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             <input name="email" type="email" autoComplete="email" required />
           </label>
           <label>
-            Password
+            <span className="row-between">
+              Password
+              <Link href="/forgot-password" className="small">
+                Forgot password?
+              </Link>
+            </span>
             <input name="password" type="password" autoComplete="current-password" required />
           </label>
           <SubmitButton pendingText="Logging in…">Log in</SubmitButton>

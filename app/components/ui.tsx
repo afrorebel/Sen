@@ -78,7 +78,13 @@ export function TrendChart({ points }: { points: { label: string; value: number 
       ))}
       {points.map((p, i) =>
         points.length <= 8 || i % Math.ceil(points.length / 8) === 0 || i === points.length - 1 ? (
-          <text key={`l${i}`} x={x(i)} y={H - 6} textAnchor="middle" className="axis">
+          <text
+            key={`l${i}`}
+            x={x(i)}
+            y={H - 6}
+            textAnchor={points.length > 1 && i === 0 ? "start" : points.length > 1 && i === points.length - 1 ? "end" : "middle"}
+            className="axis"
+          >
             {p.label}
           </text>
         ) : null,

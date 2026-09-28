@@ -1,12 +1,21 @@
 import "server-only";
 import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { db } from "./db";
-import { memberships, organizations, sessions, users, type MemberRole, type Organization, type User } from "./db/schema";
+import {
+  memberships,
+  organizations,
+  passwordResets,
+  sessions,
+  users,
+  type MemberRole,
+  type Organization,
+  type User,
+} from "./db/schema";
 
 const scrypt = promisify(scryptCb) as (pw: string, salt: Buffer, len: number) => Promise<Buffer>;
 const COOKIE = "aeo_session";
@@ -99,4 +108,61 @@ export async function requireOrg(user: User, orgId: string): Promise<OrgAccess> 
   const match = (await getOrgs(user.id)).find((m) => m.org.id === orgId);
   if (!match) redirect("/app");
   return { org: match.org, role: match.role, canEdit: match.role !== "client" };
+}
+
+// ---------------------------------------------------------------------------
+// Password reset & invite links
+// ---------------------------------------------------------------------------
+
+/** Creates a single-use link token. Only its hash is stored. */
+export async function createPasswordToken(userId: string, hours: number): Promise<string> {
+  const token = randomBytes(32).toString("base64url");
+  await db.insert(passwordResets).values({
+    id: tokenId(token),
+    userId,
+    expiresAt: new Date(Date.now() + hours * 3_600_000),
+  });
+  return token;
+}
+
+/** Returns the user for a valid, unused, unexpired token. */
+export async function findPasswordToken(token: string) {
+  const rows = await db
+    .select({ reset: passwordResets, user: users })
+    .from(passwordResets)
+    .innerJoin(users, eq(users.id, passwordResets.userId))
+    .where(
+      and(eq(passwordResets.id, tokenId(token)), isNull(passwordResets.usedAt), gt(passwordResets.expiresAt, new Date())),
+    )
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** Sets a new password, burns the token and signs out every other session. */
+export async function consumePasswordToken(token: string, newPassword: string): Promise<User | null> {
+  const found = await findPasswordToken(token);
+  if (!found) return null;
+  const passwordHash = await hashPassword(newPassword);
+  const ok = await db.transaction(async (tx) => {
+    // Claim the token atomically so two simultaneous submits can't both use it.
+    const claimed = await tx
+      .update(passwordResets)
+      .set({ usedAt: new Date() })
+      .where(and(eq(passwordResets.id, tokenId(token)), isNull(passwordResets.usedAt)))
+      .returning({ id: passwordResets.id });
+    if (!claimed.length) return false;
+    // Any other outstanding links for this user stop working too.
+    await tx
+      .update(passwordResets)
+      .set({ usedAt: new Date() })
+      .where(and(eq(passwordResets.userId, found.user.id), isNull(passwordResets.usedAt)));
+    await tx.update(users).set({ passwordHash }).where(eq(users.id, found.user.id));
+    await tx.delete(sessions).where(eq(sessions.userId, found.user.id));
+    return true;
+  });
+  return ok ? found.user : null;
+}
+
+export async function signOutEverywhere(userId: string) {
+  await db.delete(sessions).where(eq(sessions.userId, userId));
 }

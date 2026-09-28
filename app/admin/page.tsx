@@ -134,7 +134,7 @@ export default async function AdminPage() {
               <input name="ownerName" placeholder="Client contact name (optional)" />
               <input name="ownerEmail" type="email" placeholder="Client email (optional)" />
             </div>
-            <input name="ownerPassword" type="text" placeholder="Temporary password for the client (8+ characters)" />
+            <input name="ownerPassword" type="text" placeholder="Temporary password (optional; blank = email an invite)" />
             <SubmitButton>Create workspace</SubmitButton>
           </ActionForm>
         </section>

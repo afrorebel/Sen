@@ -16,6 +16,8 @@ Businesses see whether ChatGPT, Google AI Mode, Perplexity, Gemini and Claude na
 | **Site audit** | The AEO audit saved per brand, so it can be re-run over time. |
 | **Done-for-you** | Task board (to do → in progress → review → done), a one-click 90-day onboarding plan, comments, internal-only tasks, and a deliverables log (articles, schema, llms.txt, Google Business posts, reports…). |
 | **Client portal** | Read-only client logins. Clients see results, client-visible tasks and deliverables, and can comment. |
+| **Billing** | Stripe Checkout for Starter/Growth/Agency (monthly or annual) and Done For You. The Stripe customer portal handles plan changes, cards, invoices and cancellation. Webhooks update the workspace plan automatically, and plan limits are enforced at run time after a downgrade. |
+| **Accounts** | Forgot/reset password by email (1-hour single-use links; a reset signs out every other session), change password, and invite emails so new clients and teammates set their own password. |
 | **Admin** (staff) | All workspaces, plans, done-for-you flag, list-price MRR, DataForSEO spend, and creating client workspaces with portal logins. |
 
 ## Plans
@@ -30,7 +32,7 @@ Defined in `lib/plans.ts`:
 | Agency | $349/mo | 10 brands, 400 prompts, 5 engines, client logins |
 | Done For You | from $799/mo | Full service plus the platform |
 
-Limits are enforced when brands, prompts and engines are added. For now, plans are set by staff on the Admin page; Stripe self-serve billing is the next step.
+Limits are enforced when brands, prompts and engines are added, and again whenever a tracking run starts. Customers subscribe through Stripe on the Billing page. Staff can still set any plan by hand on the Admin page, e.g. for invoiced done-for-you clients. `npm run stripe:setup` creates the Stripe products and prices.
 
 ## How the tracking works
 

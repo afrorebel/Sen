@@ -29,10 +29,39 @@ Until these are set, the app runs in **demo mode** with simulated answers, so yo
    - `CRON_SECRET`: a long random string, e.g. from a password generator
    - `DATAFORSEO_LOGIN`, `DATAFORSEO_PASSWORD`: from step 2
    - `ADMIN_EMAIL`: the email you'll sign up with
+   - Email and Stripe settings: see steps 4 and 5 (they can be added later)
 4. Point **aeogrowthleads.com** at the app (hPanel → Domains) and turn on SSL.
 5. Deploy. Visit `https://aeogrowthleads.com/signup` and create your account. The first account, and `ADMIN_EMAIL`, get **Admin** access.
 
-## 4. Schedule the tracking cron job
+## 4. Email for password resets and client invites
+
+1. In hPanel open **Emails** and create a mailbox such as `hello@aeogrowthleads.com`.
+2. Add these environment variables to the app, then redeploy:
+   `SMTP_HOST=smtp.hostinger.com`, `SMTP_PORT=465`, `SMTP_USER=hello@aeogrowthleads.com`,
+   `SMTP_PASSWORD=<mailbox password>`, `EMAIL_FROM=AEOGrowthLeads <hello@aeogrowthleads.com>` and
+   `APP_URL=https://aeogrowthleads.com`.
+3. Test it: log out, click **Forgot password?**, and check that the email arrives. If it lands in spam, turn on SPF/DKIM/DMARC for the domain in hPanel → Emails → DNS settings.
+
+Until SMTP is set, emails are written to the app's log instead of being sent.
+
+## 5. Stripe billing
+
+1. In Stripe, stay in **Test mode** first. Go to **Developers → API keys** and copy the **Secret key** (`sk_test_…`).
+2. On your computer, in the project folder, create the products and prices once:
+   ```bash
+   STRIPE_SECRET_KEY=sk_test_... npm run stripe:setup
+   ```
+   This creates Starter, Growth and Agency (monthly and annual) and Done For You (monthly), priced as in `lib/plans.ts`.
+3. **Developers → Webhooks → Add endpoint**:
+   - URL: `https://aeogrowthleads.com/api/stripe/webhook`
+   - Events: `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`
+   - Copy the **Signing secret** (`whsec_…`).
+4. **Settings → Billing → Customer portal**: turn on "Customers can switch plans". Add the Starter, Growth and Agency prices to it, and allow cancellations and invoice history.
+5. Add `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` to the Hostinger app and redeploy.
+6. Test: open **Billing** in the app, choose a plan, and pay with test card `4242 4242 4242 4242` (any future date, any CVC). You return to the Billing page and the plan changes within a few seconds.
+7. To go live: repeat steps 1–5 with live keys (`sk_live_…`) and a live webhook.
+
+## 6. Schedule the tracking cron job
 
 In hPanel open **Advanced → Cron Jobs** and add a job that runs **every 5 minutes**:
 
@@ -42,7 +71,7 @@ curl -fsS "https://aeogrowthleads.com/api/cron?key=YOUR_CRON_SECRET" > /dev/null
 
 Each call starts any brands that are due for their weekly or daily check. It then works through pending checks for about 50 seconds. A 50-prompt × 3-engine brand (150 checks) finishes within a few ticks.
 
-## 5. Check it works
+## 7. Check it works
 
 - `https://aeogrowthleads.com/api/cron?key=YOUR_CRON_SECRET` should return `{"ok":true,...}`.
 - Add a brand, then open **Prompts**: results fill in as checks finish.
