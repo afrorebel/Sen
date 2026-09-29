@@ -44,7 +44,7 @@ export default function PricingPage() {
                 ))}
               </ul>
               <Link href="/signup" className={`btn ${p.highlight ? "" : "ghost"}`}>
-                {p.monthly ? "Start free, upgrade anytime" : "Start free"}
+                {p.monthly ? `Start with ${p.name}` : "Start free"}
               </Link>
             </div>
           ))}

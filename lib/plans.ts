@@ -43,7 +43,7 @@ export const PLANS: Record<PlanId, Plan> = {
     engineSlots: 3,
     frequencies: ["weekly"],
     auditPages: 100,
-    features: ["1 brand, 50 prompts", "3 AI engines", "Weekly tracking", "Competitor share of voice", "Cited-source insights"],
+    features: ["1 brand, 50 prompts", "3 AI engines", "Weekly tracking", "Competitor share of voice", "Cited-source insights", "Monthly PDF report"],
   },
   growth: {
     id: "growth",
@@ -56,7 +56,7 @@ export const PLANS: Record<PlanId, Plan> = {
     engineSlots: 4,
     frequencies: ["weekly", "daily"],
     auditPages: 500,
-    features: ["3 brands, 150 prompts", "4 AI engines", "Weekly or daily tracking", "Everything in Starter", "PDF reports"],
+    features: ["3 brands, 150 prompts", "4 AI engines", "Weekly or daily tracking", "Everything in Starter", "Reports emailed to clients"],
     highlight: true,
   },
   agency: {
