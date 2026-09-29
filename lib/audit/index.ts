@@ -117,6 +117,30 @@ function detectBrand(ctx: Awaited<ReturnType<typeof buildContext>>): string {
   return title.find((t) => t.toLowerCase().replace(/\s/g, "").includes(root.toLowerCase())) ?? root;
 }
 
+const SEMANTIC = new Set([
+  "a", "article", "aside", "blockquote", "body", "button", "caption", "details", "dialog", "figcaption", "figure",
+  "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "head", "header", "html", "img", "label", "li", "link", "main",
+  "mark", "meta", "nav", "ol", "p", "picture", "script", "section", "small", "summary", "svg", "table", "tbody", "td",
+  "th", "thead", "time", "title", "tr", "ul", "video",
+]);
+
+function semanticSummary($: Awaited<ReturnType<typeof buildContext>>["$"]) {
+  const tags = new Set<string>();
+  let semantic = 0;
+  let nonSemantic = 0;
+  $("*").each((_, el) => {
+    const name = "tagName" in el ? String(el.tagName).toLowerCase() : "";
+    if (!name) return;
+    if (SEMANTIC.has(name)) {
+      semantic++;
+      tags.add(name);
+    } else {
+      nonSemantic++;
+    }
+  });
+  return { tags: [...tags].sort(), semantic, nonSemantic };
+}
+
 export async function runAudit(inputUrl: string, opts: AuditOptions = {}): Promise<AuditReport> {
   const started = Date.now();
   const url = normalizeUrl(inputUrl);
@@ -181,6 +205,7 @@ export async function runAudit(inputUrl: string, opts: AuditOptions = {}): Promi
       responseMs: ctx.page.responseMs,
       bytes: ctx.page.bytes,
       schemaTypes: ctx.schemaTypes,
+      semantics: semanticSummary(ctx.$),
     },
   };
 }

@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * Stripe → Dashboard → Developers → Webhooks → add endpoint
- *   https://aeogrowthleads.com/api/stripe/webhook
+ *   https://app.aeogrowthlead.com/api/stripe/webhook
  * Events: customer.subscription.created, customer.subscription.updated, customer.subscription.deleted
  */
 export async function POST(request: Request) {

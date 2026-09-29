@@ -9,7 +9,7 @@ import { db } from "@/lib/db";
 import { brands, prompts } from "@/lib/db/schema";
 import { PLANS, planFor, type PlanId } from "@/lib/plans";
 
-export const metadata = { title: "Billing · AEOGrowthLeads" };
+export const metadata = { title: "Billing · AEO GrowthLead" };
 
 const STATUS: Record<string, string> = {
   active: "Active",
@@ -82,7 +82,7 @@ export default async function BillingPage({
           Online payments aren&apos;t switched on yet.{" "}
           {user.isStaff
             ? "Add STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET (see DEPLOY-HOSTINGER.md). You can still set plans on the Admin page."
-            : "Email hello@aeogrowthleads.com to change your plan."}
+            : "Email hello@aeogrowthlead.com to change your plan."}
         </div>
       )}
 

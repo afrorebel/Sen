@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, lt } from "drizzle-orm";
 import { db } from "../db";
 import { checks, prompts, runs, type Check, type Run } from "../db/schema";
 import { ENGINES, isEngine, type EngineId } from "./engines";
@@ -35,6 +35,8 @@ export interface BrandVisibility {
     text: string;
     intent: string;
     results: Partial<Record<EngineId, Pick<Check, "mentioned" | "position" | "cited" | "status" | "id">>>;
+    /** The latest full check per engine (answer, sources, fan-out) for the report view. */
+    checks: Check[];
   }[];
 }
 
@@ -54,11 +56,12 @@ function summarize(run: Run, rows: Check[]): RunSummary {
   };
 }
 
-export async function brandVisibility(brandId: string, trendRuns = 12): Promise<BrandVisibility> {
+/** Visibility for a brand from its most recent runs; `before` limits it to runs started before a date (monthly reports). */
+export async function brandVisibility(brandId: string, trendRuns = 12, before?: Date): Promise<BrandVisibility> {
   const recent = await db
     .select()
     .from(runs)
-    .where(eq(runs.brandId, brandId))
+    .where(and(eq(runs.brandId, brandId), before ? lt(runs.startedAt, before) : undefined))
     .orderBy(desc(runs.startedAt))
     .limit(trendRuns);
   const promptRows = await db
@@ -75,7 +78,7 @@ export async function brandVisibility(brandId: string, trendRuns = 12): Promise<
       engines: [],
       competitors: [],
       sources: [],
-      prompts: promptRows.map((p) => ({ id: p.id, text: p.text, intent: p.intent, results: {} })),
+      prompts: promptRows.map((p) => ({ id: p.id, text: p.text, intent: p.intent, results: {}, checks: [] })),
     };
   }
 
@@ -146,13 +149,15 @@ export async function brandVisibility(brandId: string, trendRuns = 12): Promise<
   }
   const promptResults = promptRows.map((p) => {
     const results: BrandVisibility["prompts"][number]["results"] = {};
+    const full: Check[] = [];
     for (const id of Object.keys(ENGINES)) {
       const c = latestByKey.get(`${p.id}|${id}`);
       if (c && isEngine(id)) {
         results[id] = { id: c.id, mentioned: c.mentioned, position: c.position, cited: c.cited, status: c.status };
+        full.push(c);
       }
     }
-    return { id: p.id, text: p.text, intent: p.intent, results };
+    return { id: p.id, text: p.text, intent: p.intent, results, checks: full };
   });
 
   return { latest, previous, trend, engines, competitors, sources, prompts: promptResults };

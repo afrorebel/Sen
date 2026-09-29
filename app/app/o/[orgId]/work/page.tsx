@@ -6,7 +6,7 @@ import { requireOrg, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { brands, deliverables, taskComments, tasks, users, type TaskStatus } from "@/lib/db/schema";
 
-export const metadata = { title: "Work · AEOGrowthLeads" };
+export const metadata = { title: "Work · AEO GrowthLead" };
 
 const COLUMNS: { id: TaskStatus; label: string }[] = [
   { id: "todo", label: "To do" },

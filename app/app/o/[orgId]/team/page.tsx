@@ -6,7 +6,7 @@ import { requireOrg, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { memberships, users } from "@/lib/db/schema";
 
-export const metadata = { title: "Team & clients · AEOGrowthLeads" };
+export const metadata = { title: "Team & clients · AEO GrowthLead" };
 
 const ROLE_LABEL = { owner: "Owner", member: "Team member", client: "Client (view only)" };
 
@@ -46,7 +46,7 @@ export default async function TeamPage({ params }: { params: Promise<{ orgId: st
                 <tr key={p.id}>
                   <td>
                     {p.name}
-                    {p.isStaff && <span className="tag">AEOGrowthLeads team</span>}
+                    {p.isStaff && <span className="tag">AEO GrowthLead team</span>}
                   </td>
                   <td>{p.email}</td>
                   <td>{ROLE_LABEL[p.role]}</td>

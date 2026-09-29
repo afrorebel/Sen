@@ -8,7 +8,7 @@ import { z } from "zod";
 import { requireOrg, requireUser } from "@/lib/auth";
 import { runAudit } from "@/lib/audit";
 import { db } from "@/lib/db";
-import { audits, brands, prompts, type Competitor } from "@/lib/db/schema";
+import { audits, brands, prompts, tasks, type Competitor } from "@/lib/db/schema";
 import { countryByIso, inferIntent } from "@/lib/locations";
 import { defaultEngines, planFor } from "@/lib/plans";
 import { normalizeDomain } from "@/lib/tracking/analyze";
@@ -203,4 +203,45 @@ export async function deleteBrand(brandId: string) {
   const { brand } = await editableBrand(brandId);
   await db.delete(brands).where(eq(brands.id, brandId));
   redirect(`/app/o/${brand.orgId}`);
+}
+
+export async function setRecommendationState(brandId: string, recId: string, state: "done" | "dismissed" | null) {
+  const { brand } = await editableBrand(brandId);
+  const next = { ...(brand.recState ?? {}) };
+  if (state) next[recId] = state;
+  else delete next[recId];
+  await db.update(brands).set({ recState: next }).where(eq(brands.id, brandId));
+  revalidatePath(`/app/o/${brand.orgId}/b/${brandId}`);
+}
+
+/** Copies a recommendation onto the task board (useful for done-for-you delivery). */
+export async function recommendationToTask(brandId: string, rec: { id: string; title: string; detail: string; steps: string[]; tag: string }) {
+  const { brand, user } = await editableBrand(brandId);
+  const category = /citation|featured/i.test(rec.tag + rec.title)
+    ? "citations"
+    : /content|answer|comparison/i.test(rec.tag)
+      ? "content"
+      : "technical";
+  await db.insert(tasks).values({
+    orgId: brand.orgId,
+    brandId,
+    title: rec.title.slice(0, 200),
+    description: `${rec.detail}\n\n${rec.steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}`,
+    category,
+    createdBy: user.id,
+  });
+  revalidatePath(`/app/o/${brand.orgId}/work`);
+}
+
+export async function updateReportRecipients(brandId: string, _: FormState, form: FormData): Promise<FormState> {
+  const { brand } = await editableBrand(brandId);
+  const emails = String(form.get("recipients") ?? "")
+    .split(/[\s,;]+/)
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  const bad = emails.filter((e) => !z.string().email().safeParse(e).success);
+  if (bad.length) return { error: `Not a valid email: ${bad[0]}` };
+  await db.update(brands).set({ reportRecipients: [...new Set(emails)].slice(0, 10) }).where(eq(brands.id, brandId));
+  revalidatePath(`/app/o/${brand.orgId}/b/${brandId}`);
+  return { ok: emails.length ? `Monthly reports will go to ${emails.length} recipient(s) on the 1st of each month.` : "Monthly emails turned off." };
 }

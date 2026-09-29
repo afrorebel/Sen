@@ -117,6 +117,7 @@ async function processOne({ check, prompt, brand }: Claimed) {
       brandsFound: analysis.brandsFound,
       answer: answer.text.slice(0, 20_000),
       sources: answer.sources.slice(0, 50),
+      fanOut: answer.fanOut,
       cost: answer.cost,
     });
   } catch (err) {
@@ -174,5 +175,11 @@ export async function processPending({ budgetMs = 50_000, batch = CONCURRENCY } 
 export async function tick(budgetMs?: number) {
   const started = await scheduleDueRuns();
   const processed = await processPending({ budgetMs });
-  return { started, processed };
+  // Monthly PDF emails go out on the first ticks of each month (deduplicated per brand and month).
+  const { sendDueMonthlyReports } = await import("../reports/send");
+  const reportsSent = await sendDueMonthlyReports().catch((err) => {
+    console.error("Monthly reports failed", err);
+    return 0;
+  });
+  return { started, processed, reportsSent };
 }

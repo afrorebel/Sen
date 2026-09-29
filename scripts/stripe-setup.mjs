@@ -1,4 +1,4 @@
-// Creates the AEOGrowthLeads products and prices in Stripe (idempotent: existing lookup keys are skipped).
+// Creates the AEO GrowthLead products and prices in Stripe (idempotent: existing lookup keys are skipped).
 //   STRIPE_SECRET_KEY=sk_test_... npm run stripe:setup
 // Run once with your test key and once with your live key.
 import Stripe from "stripe";
@@ -12,10 +12,10 @@ const stripe = new Stripe(key);
 
 // Keep in sync with lib/plans.ts (prices in USD).
 const PLANS = [
-  { id: "starter", name: "AEOGrowthLeads Starter", month: 49, yearPerMonth: 39 },
-  { id: "growth", name: "AEOGrowthLeads Growth", month: 129, yearPerMonth: 103 },
-  { id: "agency", name: "AEOGrowthLeads Agency", month: 349, yearPerMonth: 279 },
-  { id: "dfy", name: "AEOGrowthLeads Done For You", month: 799 },
+  { id: "starter", name: "AEO GrowthLead Starter", month: 49, yearPerMonth: 39 },
+  { id: "growth", name: "AEO GrowthLead Growth", month: 129, yearPerMonth: 103 },
+  { id: "agency", name: "AEO GrowthLead Agency", month: 349, yearPerMonth: 279 },
+  { id: "dfy", name: "AEO GrowthLead Done For You", month: 799 },
 ];
 
 for (const plan of PLANS) {
@@ -49,4 +49,4 @@ for (const plan of PLANS) {
     console.log(`+ ${plan.name}: ${lookup_key} = $${w.amount / 100}/${w.interval}`);
   }
 }
-console.log("Done. Next: add the webhook endpoint https://aeogrowthleads.com/api/stripe/webhook in Stripe.");
+console.log("Done. Next: add the webhook endpoint https://app.aeogrowthlead.com/api/stripe/webhook in Stripe.");

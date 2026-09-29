@@ -2,8 +2,8 @@ import "server-only";
 import nodemailer, { type Transporter } from "nodemailer";
 
 /**
- * Sends mail through any SMTP server. With a Hostinger mailbox (e.g. hello@aeogrowthleads.com):
- *   SMTP_HOST=smtp.hostinger.com  SMTP_PORT=465  SMTP_USER=hello@aeogrowthleads.com  SMTP_PASSWORD=…
+ * Sends mail through any SMTP server. With a Hostinger mailbox (e.g. hello@aeogrowthlead.com):
+ *   SMTP_HOST=smtp.hostinger.com  SMTP_PORT=465  SMTP_USER=hello@aeogrowthlead.com  SMTP_PASSWORD=…
  * Without SMTP settings, emails are printed to the server log instead (useful in development).
  */
 
@@ -23,7 +23,7 @@ function getTransport() {
   return transport;
 }
 
-const FROM = () => process.env.EMAIL_FROM || `AEOGrowthLeads <${process.env.SMTP_USER ?? "hello@aeogrowthleads.com"}>`;
+const FROM = () => process.env.EMAIL_FROM || `AEO GrowthLead <${process.env.SMTP_USER ?? "hello@aeogrowthlead.com"}>`;
 
 function escape(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -45,21 +45,33 @@ function layout(opts: { heading: string; body: string; button: string; url: stri
   return { html, text };
 }
 
-async function send(to: string, subject: string, content: { html: string; text: string }) {
+interface Attachment {
+  filename: string;
+  content: Buffer;
+}
+
+async function send(to: string | string[], subject: string, content: { html: string; text: string }, attachments: Attachment[] = []) {
   if (!emailConfigured()) {
-    console.log(`[email not configured] To: ${to}\nSubject: ${subject}\n${content.text}\n`);
+    const files = attachments.map((a) => `${a.filename} (${Math.round(a.content.length / 1024)} KB)`).join(", ");
+    console.log(`[email not configured] To: ${[to].flat().join(", ")}\nSubject: ${subject}\n${content.text}\n${files ? `Attachments: ${files}\n` : ""}`);
     return;
   }
-  await getTransport().sendMail({ from: FROM(), to, subject, ...content });
+  await getTransport().sendMail({
+    from: FROM(),
+    to,
+    subject,
+    ...content,
+    attachments: attachments.map((a) => ({ filename: a.filename, content: a.content, contentType: "application/pdf" })),
+  });
 }
 
 export async function sendPasswordResetEmail(to: string, name: string, url: string) {
   await send(
     to,
-    "Reset your AEOGrowthLeads password",
+    "Reset your AEO GrowthLead password",
     layout({
       heading: `Hi ${name.split(" ")[0]}, reset your password`,
-      body: "We received a request to reset the password for your AEOGrowthLeads account. This link works once and expires in 1 hour.",
+      body: "We received a request to reset the password for your AEO GrowthLead account. This link works once and expires in 1 hour.",
       button: "Choose a new password",
       url,
       footer: "If you didn't ask for this, you can ignore this email. Your password won't change.",
@@ -70,13 +82,33 @@ export async function sendPasswordResetEmail(to: string, name: string, url: stri
 export async function sendInviteEmail(to: string, name: string, workspace: string, url: string) {
   await send(
     to,
-    `You're invited to ${workspace} on AEOGrowthLeads`,
+    `You're invited to ${workspace} on AEO GrowthLead`,
     layout({
       heading: `Hi ${name.split(" ")[0]}, your dashboard is ready`,
-      body: `You've been given access to ${workspace} on AEOGrowthLeads. There you can see how AI assistants like ChatGPT and Google AI Mode talk about your business, and follow the work our team is doing. Set a password to get started. The link expires in 3 days.`,
+      body: `You've been given access to ${workspace} on AEO GrowthLead. There you can see how AI assistants like ChatGPT and Google AI Mode talk about your business, and follow the work our team is doing. Set a password to get started. The link expires in 3 days.`,
       button: "Set my password",
       url,
       footer: "Questions? Just reply to this email.",
     }),
+  );
+}
+
+export async function sendReportEmail(
+  to: string[],
+  r: { brandName: string; periodLabel: string; score: number | null; summary: string[]; attachment: Attachment },
+) {
+  const url = `${process.env.APP_URL?.replace(/\/$/, "") ?? ""}/app`;
+  const body = `${r.score != null ? `AEO score: ${r.score}/100. ` : ""}${r.summary.join(" ")} The full report is attached as a PDF.`;
+  await send(
+    to,
+    `${r.brandName}: AI visibility report for ${r.periodLabel}`,
+    layout({
+      heading: `${r.brandName} · ${r.periodLabel}`,
+      body,
+      button: "Open the live dashboard",
+      url,
+      footer: "You're receiving this because you're on the monthly report list for this brand. Reply to this email to change that.",
+    }),
+    [r.attachment],
   );
 }

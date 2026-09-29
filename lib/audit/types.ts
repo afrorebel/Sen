@@ -98,5 +98,7 @@ export interface AuditReport {
     responseMs: number;
     bytes: number;
     schemaTypes: string[];
+    /** HTML5 semantic tags used on the page, and how much of the markup is semantic. */
+    semantics?: { tags: string[]; semantic: number; nonSemantic: number };
   };
 }

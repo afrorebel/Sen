@@ -3,7 +3,7 @@ import type { Source } from "../db/schema";
 import type { EngineId } from "./engines";
 
 /**
- * Thin DataForSEO client for the endpoints AEOGrowthLeads uses to ask AI engines a prompt.
+ * Thin DataForSEO client for the endpoints AEO GrowthLead uses to ask AI engines a prompt.
  * One account and one balance cover every API; auth is HTTP Basic with the API login/password.
  */
 
@@ -14,6 +14,8 @@ export interface EngineAnswer {
   sources: Source[];
   /** Brands the engine itself labelled (ChatGPT scraper returns these). */
   brandEntities: string[];
+  /** Sub-queries the engine searched for ("fan-out"), when reported. */
+  fanOut: string[];
   cost: number;
 }
 
@@ -136,7 +138,25 @@ export function toAnswer(result: unknown, cost: number): EngineAnswer {
   collectSources(r, sources);
   const entities = new Set<string>();
   collectBrandEntities(r, entities);
-  return { text: markdownOf(r), sources: [...sources.values()], brandEntities: [...entities], cost };
+  const fanOut = new Set<string>();
+  collectFanOut(r, fanOut);
+  return { text: markdownOf(r), sources: [...sources.values()], brandEntities: [...entities], fanOut: [...fanOut].slice(0, 12), cost };
+}
+
+/** LLM Responses report `fan_out_queries`; other endpoints may nest search queries elsewhere. */
+function collectFanOut(node: unknown, out: Set<string>, depth = 0): void {
+  if (depth > 8 || !node || typeof node !== "object") return;
+  if (Array.isArray(node)) {
+    node.forEach((n) => collectFanOut(n, out, depth + 1));
+    return;
+  }
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    if ((key === "fan_out_queries" || key === "search_queries") && Array.isArray(value)) {
+      for (const q of value) if (typeof q === "string" && q.trim()) out.add(q.trim());
+    } else if (value && typeof value === "object") {
+      collectFanOut(value, out, depth + 1);
+    }
+  }
 }
 
 /** Ask one engine one prompt. */
@@ -204,25 +224,43 @@ function seeded(str: string) {
   };
 }
 
+const MOCK_SOURCES: Source[] = [
+  { url: "https://www.reddit.com/r/HomeImprovement/comments/1k2x/who_did_you_hire/", domain: "reddit.com", title: "Who did you hire and would you use them again?" },
+  { url: "https://www.yelp.com/search?find_desc=restoration", domain: "yelp.com", title: "Top 10 Best near you" },
+  { url: "https://www.youtube.com/watch?v=q8d2", domain: "youtube.com", title: "What to do in the first 24 hours" },
+  { url: "https://www.angi.com/articles/how-to-choose.htm", domain: "angi.com", title: "How to choose a provider" },
+  { url: "https://www.bbb.org/search?find_text=restoration", domain: "bbb.org", title: "Accredited businesses" },
+  { url: "https://www.forbes.com/home-improvement/cost-guide/", domain: "forbes.com", title: "2026 cost guide" },
+  { url: "https://www.thumbtack.com/k/restoration/near-me/", domain: "thumbtack.com", title: "Best pros near you" },
+  { url: "https://en.wikipedia.org/wiki/Water_damage", domain: "en.wikipedia.org", title: "Water damage" },
+  { url: "https://www.linkedin.com/pulse/choosing-a-restoration-partner", domain: "linkedin.com", title: "Choosing a restoration partner" },
+  { url: "https://www.homeadvisor.com/cost/", domain: "homeadvisor.com", title: "Cost guide" },
+];
+
 function mockAnswer(engine: EngineId, opts: AskOptions): EngineAnswer {
   const mockBrands = opts.mockNames ?? [];
-  const rand = seeded(`${engine}|${opts.prompt}|${new Date().toISOString().slice(0, 10)}`);
+  const rand = seeded(`${engine}|${opts.prompt}|${new Date().toISOString().slice(0, 10)}|${Math.random() < 0.5 ? 0 : 1}`);
+  const ownDomain = mockBrands.find((b) => b.includes("."));
   const pool = [...mockBrands.filter((b) => !b.includes(".")), "BrightPath Co", "Summit Partners", "Northwind Group"];
-  const picks = pool.filter(() => rand() < 0.45).slice(0, 4);
-  const lines = picks.map((b, i) => `${i + 1}. **${b}** — frequently recommended for this need, with strong reviews.`);
-  const sources: Source[] = [
-    { url: "https://www.reddit.com/r/smallbusiness/comments/abc/which_provider/", domain: "reddit.com", title: "Which provider did you pick?" },
-    { url: "https://www.yelp.com/search?find_desc=providers", domain: "yelp.com", title: "Top providers" },
-    { url: "https://en.wikipedia.org/wiki/Service", domain: "en.wikipedia.org", title: "Service" },
-  ].filter(() => rand() < 0.7);
-  if (mockBrands[0] && rand() < 0.35) {
-    const domain = mockBrands.find((b) => b.includes(".")) ?? "example.com";
-    sources.push({ url: `https://${domain}/`, domain, title: "Official site" });
-  }
+  const picks = pool.filter(() => rand() < 0.5).slice(0, 4);
+  const blurbs = [
+    "24/7 emergency response with IICRC-certified technicians and direct insurance billing.",
+    "Well reviewed for fast arrival times and clear, itemised estimates.",
+    "A larger regional operator with crews across most of the metro area.",
+    "Often recommended in homeowner forums for communication and follow-through.",
+  ];
+  const lines = picks.map((b, i) => `${i + 1}. **${b}**: ${blurbs[i % blurbs.length]}`);
+  const sources = MOCK_SOURCES.filter(() => rand() < 0.35).slice(0, 6);
+  if (ownDomain && rand() < 0.4) sources.unshift({ url: `https://${ownDomain}/services`, domain: ownDomain, title: "Services" });
+  const topic = opts.prompt.replace(/\?$/, "").toLowerCase();
+  const text = picks.length
+    ? `For "${opts.prompt}", these are the names that come up most often:\n\n${lines.join("\n")}\n\nBefore choosing, confirm they are licensed and insured, ask for an itemised estimate, and check how quickly they can be on site.`
+    : `There isn't one clear leader for ${topic}. Look for a company with verified reviews, proper certifications and transparent pricing, and compare at least two written estimates.`;
   return {
-    text: `Here are some options for "${opts.prompt}":\n\n${lines.join("\n") || "No specific providers stood out."}`,
+    text,
     sources,
     brandEntities: picks,
+    fanOut: rand() < 0.75 ? [`${topic} reviews`, `${topic} cost`, `best rated ${topic.split(" ").slice(-3).join(" ")}`].slice(0, 2 + Math.floor(rand() * 2)) : [],
     cost: 0,
   };
 }

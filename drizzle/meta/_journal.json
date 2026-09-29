@@ -15,6 +15,13 @@
       "when": 1790564324082,
       "tag": "0001_billing_and_password_reset",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790720925395,
+      "tag": "0002_dashboard_and_reports",
+      "breakpoints": true
     }
   ]
 }

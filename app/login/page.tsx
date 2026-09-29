@@ -5,7 +5,7 @@ import { ActionForm, SubmitButton } from "@/app/components/forms";
 import { SiteHeader } from "@/app/components/site-header";
 import { getUser } from "@/lib/auth";
 
-export const metadata = { title: "Log in · AEOGrowthLeads" };
+export const metadata = { title: "Log in · AEO GrowthLead" };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
   if (await getUser()) redirect("/app");

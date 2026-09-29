@@ -18,7 +18,7 @@ function authorized(request: Request): boolean {
 
 /**
  * Called by Hostinger's cron every 5 minutes:
- *   curl -fsS "https://aeogrowthleads.com/api/cron?key=$CRON_SECRET"
+ *   curl -fsS "https://app.aeogrowthlead.com/api/cron?key=$CRON_SECRET"
  * Starts due tracking runs, then works through pending checks for ~50 seconds.
  */
 export async function GET(request: Request) {

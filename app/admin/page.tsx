@@ -1,3 +1,4 @@
+import { TopHeader } from "@/app/components/top-header";
 import { count, desc, gt, ne } from "drizzle-orm";
 import Link from "next/link";
 import { createClientOrg, updateOrgPlan } from "@/app/actions/work";
@@ -8,7 +9,7 @@ import { brands, organizations, runs, tasks } from "@/lib/db/schema";
 import { PLANS } from "@/lib/plans";
 import { dataForSeoConfigured } from "@/lib/tracking/dataforseo";
 
-export const metadata = { title: "Admin · AEOGrowthLeads" };
+export const metadata = { title: "Admin · AEO GrowthLead" };
 
 export default async function AdminPage() {
   await requireStaff();
@@ -26,6 +27,8 @@ export default async function AdminPage() {
   const byOrg = <T extends { orgId: string; n: number }>(rows: T[], id: string) => rows.find((r) => r.orgId === id)?.n ?? 0;
 
   return (
+      <>
+      <TopHeader />
       <main className="wrap page stack-lg">
         <div className="page-head">
           <div>
@@ -139,5 +142,6 @@ export default async function AdminPage() {
           </ActionForm>
         </section>
       </main>
+      </>
   );
 }

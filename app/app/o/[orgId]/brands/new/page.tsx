@@ -4,7 +4,7 @@ import { requireOrg, requireUser } from "@/lib/auth";
 import { planFor } from "@/lib/plans";
 import { BrandForm } from "./brand-form";
 
-export const metadata = { title: "Add brand · AEOGrowthLeads" };
+export const metadata = { title: "Add brand · AEO GrowthLead" };
 
 export default async function NewBrand({ params }: { params: Promise<{ orgId: string }> }) {
   const { orgId } = await params;

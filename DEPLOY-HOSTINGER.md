@@ -1,4 +1,4 @@
-# Deploying AEOGrowthLeads on Hostinger (Cloud Startup)
+# Deploying AEO GrowthLead on Hostinger (Cloud Startup)
 
 The app is a Next.js (Node.js) web app with a Postgres database and a cron job that runs AI-visibility checks. Your Cloud Startup plan supports Node.js web apps and cron jobs. Postgres runs on Supabase, which has a free tier.
 
@@ -30,16 +30,16 @@ Until these are set, the app runs in **demo mode** with simulated answers, so yo
    - `DATAFORSEO_LOGIN`, `DATAFORSEO_PASSWORD`: from step 2
    - `ADMIN_EMAIL`: the email you'll sign up with
    - Email and Stripe settings: see steps 4 and 5 (they can be added later)
-4. Point **aeogrowthleads.com** at the app (hPanel → Domains) and turn on SSL.
-5. Deploy. Visit `https://aeogrowthleads.com/signup` and create your account. The first account, and `ADMIN_EMAIL`, get **Admin** access.
+4. Create the subdomain **app.aeogrowthlead.com** (hPanel → Domains → Subdomains), point it at this Node.js app and turn on SSL. Your marketing site stays on aeogrowthlead.com; link its "Log in" and "Start free" buttons to `https://app.aeogrowthlead.com/login` and `/signup`.
+5. Deploy. Visit `https://app.aeogrowthlead.com/signup` and create your account. The first account, and `ADMIN_EMAIL`, get **Admin** access.
 
 ## 4. Email for password resets and client invites
 
-1. In hPanel open **Emails** and create a mailbox such as `hello@aeogrowthleads.com`.
+1. In hPanel open **Emails** and create a mailbox such as `hello@aeogrowthlead.com`.
 2. Add these environment variables to the app, then redeploy:
-   `SMTP_HOST=smtp.hostinger.com`, `SMTP_PORT=465`, `SMTP_USER=hello@aeogrowthleads.com`,
-   `SMTP_PASSWORD=<mailbox password>`, `EMAIL_FROM=AEOGrowthLeads <hello@aeogrowthleads.com>` and
-   `APP_URL=https://aeogrowthleads.com`.
+   `SMTP_HOST=smtp.hostinger.com`, `SMTP_PORT=465`, `SMTP_USER=hello@aeogrowthlead.com`,
+   `SMTP_PASSWORD=<mailbox password>`, `EMAIL_FROM=AEO GrowthLead <hello@aeogrowthlead.com>` and
+   `APP_URL=https://app.aeogrowthlead.com`.
 3. Test it: log out, click **Forgot password?**, and check that the email arrives. If it lands in spam, turn on SPF/DKIM/DMARC for the domain in hPanel → Emails → DNS settings.
 
 Until SMTP is set, emails are written to the app's log instead of being sent.
@@ -53,7 +53,7 @@ Until SMTP is set, emails are written to the app's log instead of being sent.
    ```
    This creates Starter, Growth and Agency (monthly and annual) and Done For You (monthly), priced as in `lib/plans.ts`.
 3. **Developers → Webhooks → Add endpoint**:
-   - URL: `https://aeogrowthleads.com/api/stripe/webhook`
+   - URL: `https://app.aeogrowthlead.com/api/stripe/webhook`
    - Events: `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`
    - Copy the **Signing secret** (`whsec_…`).
 4. **Settings → Billing → Customer portal**: turn on "Customers can switch plans". Add the Starter, Growth and Agency prices to it, and allow cancellations and invoice history.
@@ -66,14 +66,14 @@ Until SMTP is set, emails are written to the app's log instead of being sent.
 In hPanel open **Advanced → Cron Jobs** and add a job that runs **every 5 minutes**:
 
 ```bash
-curl -fsS "https://aeogrowthleads.com/api/cron?key=YOUR_CRON_SECRET" > /dev/null
+curl -fsS "https://app.aeogrowthlead.com/api/cron?key=YOUR_CRON_SECRET" > /dev/null
 ```
 
 Each call starts any brands that are due for their weekly or daily check. It then works through pending checks for about 50 seconds. A 50-prompt × 3-engine brand (150 checks) finishes within a few ticks.
 
 ## 7. Check it works
 
-- `https://aeogrowthleads.com/api/cron?key=YOUR_CRON_SECRET` should return `{"ok":true,...}`.
+- `https://app.aeogrowthlead.com/api/cron?key=YOUR_CRON_SECRET` should return `{"ok":true,...}`.
 - Add a brand, then open **Prompts**: results fill in as checks finish.
 - The **Admin** page shows DataForSEO spend for the last 30 days.
 

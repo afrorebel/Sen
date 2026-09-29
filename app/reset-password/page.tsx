@@ -4,7 +4,7 @@ import { ActionForm, SubmitButton } from "@/app/components/forms";
 import { SiteHeader } from "@/app/components/site-header";
 import { findPasswordToken } from "@/lib/auth";
 
-export const metadata = { title: "Choose a new password · AEOGrowthLeads" };
+export const metadata = { title: "Choose a new password · AEO GrowthLead" };
 
 export default async function ResetPasswordPage({ searchParams }: { searchParams: Promise<{ token?: string }> }) {
   const { token = "" } = await searchParams;

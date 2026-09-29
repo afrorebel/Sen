@@ -3,7 +3,7 @@ import { requestPasswordReset } from "@/app/actions/password";
 import { ActionForm, SubmitButton } from "@/app/components/forms";
 import { SiteHeader } from "@/app/components/site-header";
 
-export const metadata = { title: "Reset password · AEOGrowthLeads" };
+export const metadata = { title: "Reset password · AEO GrowthLead" };
 
 export default function ForgotPasswordPage() {
   return (

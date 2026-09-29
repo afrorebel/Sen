@@ -5,7 +5,7 @@ import { ActionForm, SubmitButton } from "@/app/components/forms";
 import { SiteHeader } from "@/app/components/site-header";
 import { getUser } from "@/lib/auth";
 
-export const metadata = { title: "Start free · AEOGrowthLeads" };
+export const metadata = { title: "Start free · AEO GrowthLead" };
 
 export default async function SignupPage() {
   if (await getUser()) redirect("/app");

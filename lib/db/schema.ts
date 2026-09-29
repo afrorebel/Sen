@@ -19,7 +19,7 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   name: text("name").notNull(),
   passwordHash: text("password_hash").notNull(),
-  /** AEOGrowthLeads team member: can see every organization and run done-for-you work. */
+  /** AEO GrowthLead team member: can see every organization and run done-for-you work. */
   isStaff: boolean("is_staff").notNull().default(false),
   createdAt: createdAt(),
 });
@@ -108,6 +108,10 @@ export const brands = pgTable(
     city: text("city"),
     engines: jsonb("engines").$type<string[]>().notNull().default([]),
     frequency: text("frequency").$type<"weekly" | "daily">().notNull().default("weekly"),
+    /** Recommendation id → "done" | "dismissed", so the task list remembers what was handled. */
+    recState: jsonb("rec_state").$type<Record<string, "done" | "dismissed">>().notNull().default({}),
+    /** Who gets the monthly PDF report by email (empty = nobody). */
+    reportRecipients: jsonb("report_recipients").$type<string[]>().notNull().default([]),
     nextRunAt: timestamp("next_run_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
@@ -182,6 +186,8 @@ export const checks = pgTable(
     answer: text("answer"),
     sources: jsonb("sources").$type<Source[]>(),
     brandsFound: jsonb("brands_found").$type<BrandHit[]>(),
+    /** Sub-queries the engine ran to build its answer ("query fan-out"), when the API reports them. */
+    fanOut: jsonb("fan_out").$type<string[]>(),
     cost: real("cost"),
     error: text("error"),
     createdAt: createdAt(),
@@ -261,6 +267,20 @@ export const taskComments = pgTable("task_comments", {
   body: text("body").notNull(),
   createdAt: createdAt(),
 });
+
+/** One row per brand per month once the monthly report has been emailed, so cron never double-sends. */
+export const reportSends = pgTable(
+  "report_sends",
+  {
+    brandId: uuid("brand_id")
+      .notNull()
+      .references(() => brands.id, { onDelete: "cascade" }),
+    period: text("period").notNull(), // YYYY-MM
+    recipients: jsonb("recipients").$type<string[]>().notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.brandId, t.period] })],
+);
 
 export type User = typeof users.$inferSelect;
 export type Organization = typeof organizations.$inferSelect;

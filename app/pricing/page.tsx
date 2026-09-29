@@ -1,17 +1,13 @@
 import Link from "next/link";
-import { SiteHeader } from "@/app/components/site-header";
+import { PriceCompare } from "@/app/components/price-compare";
+import { SiteFooter, SiteHeader } from "@/app/components/site-header";
 import { PLANS } from "@/lib/plans";
 
 export const metadata = {
-  title: "Pricing · AEOGrowthLeads",
+  title: "Pricing · AEO GrowthLead",
   description: "Affordable AI visibility tracking for ChatGPT, Google AI Mode, Perplexity, Gemini and Claude, plus done-for-you AEO.",
 };
 
-const COMPARE = [
-  { label: "Tracking ~50 prompts", us: "$49/mo (Starter)", them: "Semrush One Starter: $199/mo for 50 prompts" },
-  { label: "Cheapest paid AI-visibility plan", us: "$49/mo for 50 prompts", them: "Semrush AI Visibility: $99/mo for 25 prompts" },
-  { label: "Done-for-you AEO", us: "From $799/mo, no setup fee", them: "Agencies: $1,500–5,500/mo, often paid upfront" },
-];
 
 export default function PricingPage() {
   const selfServe = [PLANS.free, PLANS.starter, PLANS.growth, PLANS.agency];
@@ -20,9 +16,11 @@ export default function PricingPage() {
     <>
       <SiteHeader />
       <main className="wrap">
-        <section className="hero" style={{ paddingBottom: 24 }}>
-          <div className="eyebrow">Pricing</div>
-          <h1>Get named in AI answers for less</h1>
+        <section className="hero pricing-hero">
+          <span className="kicker"><i /> Pricing</span>
+          <h1>
+            Get named in AI answers <mark>for less</mark>
+          </h1>
           <p className="lede">
             Track how ChatGPT, Google AI Mode, Perplexity, Gemini and Claude talk about your business. Pay for software,
             or let our team do the work.
@@ -69,39 +67,16 @@ export default function PricingPage() {
               <span>/mo</span>
             </div>
             <p className="muted small">No setup fee. Month to month.</p>
-            <a className="btn" href="mailto:hello@aeogrowthleads.com?subject=Done-for-you%20AEO">
+            <a className="btn" href="mailto:hello@aeogrowthlead.com?subject=Done-for-you%20AEO">
               Book a strategy call
             </a>
           </div>
         </section>
 
-        <section className="card" style={{ margin: "20px 0 64px" }}>
-          <h2>How we compare</h2>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th />
-                  <th>AEOGrowthLeads</th>
-                  <th>Typical alternatives</th>
-                </tr>
-              </thead>
-              <tbody>
-                {COMPARE.map((r) => (
-                  <tr key={r.label}>
-                    <td>{r.label}</td>
-                    <td>
-                      <b>{r.us}</b>
-                    </td>
-                    <td className="muted">{r.them}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="muted small">Competitor figures are from their public pricing pages as of September 2026.</p>
-        </section>
+        <PriceCompare />
       </main>
+      <SiteFooter />
+
     </>
   );
 }

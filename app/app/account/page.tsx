@@ -1,13 +1,16 @@
+import { TopHeader } from "@/app/components/top-header";
 import { changePassword } from "@/app/actions/password";
 import { ActionForm, SubmitButton } from "@/app/components/forms";
 import { requireUser } from "@/lib/auth";
 
-export const metadata = { title: "Account · AEOGrowthLeads" };
+export const metadata = { title: "Account · AEO GrowthLead" };
 
 export default async function AccountPage() {
   const user = await requireUser();
   return (
-    <main className="wrap page stack-lg narrow">
+    <>
+      <TopHeader />
+      <main className="wrap page stack-lg narrow">
       <div>
         <h1>Your account</h1>
         <p className="muted">
@@ -35,5 +38,6 @@ export default async function AccountPage() {
         </ActionForm>
       </section>
     </main>
+      </>
   );
 }
