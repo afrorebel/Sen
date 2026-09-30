@@ -7,7 +7,9 @@ import { requireOrg, requireUser } from "@/lib/auth";
 import { BILLABLE, billingConfigured, type Interval } from "@/lib/billing";
 import { db } from "@/lib/db";
 import { brands, prompts } from "@/lib/db/schema";
-import { PLANS, planFor, type PlanId } from "@/lib/plans";
+import { manualRunAllowance, seatsUsed } from "@/lib/limits";
+import { PLANS, perMonthYearly, planFor } from "@/lib/plans";
+import { bookingUrl } from "@/lib/site";
 
 export const metadata = { title: "Billing · AEO GrowthLead" };
 
@@ -43,7 +45,7 @@ export default async function BillingPage({
   searchParams,
 }: {
   params: Promise<{ orgId: string }>;
-  searchParams: Promise<{ interval?: string; success?: string; canceled?: string }>;
+  searchParams: Promise<{ interval?: string; success?: string; canceled?: string; choose?: string }>;
 }) {
   const { orgId } = await params;
   const sp = await searchParams;
@@ -61,8 +63,11 @@ export default async function BillingPage({
     .innerJoin(brands, eq(brands.id, prompts.brandId))
     .where(and(eq(brands.orgId, orgId), eq(prompts.active, true)));
 
+  const runsLeft = await manualRunAllowance(orgId, org.plan);
+  const seats = await seatsUsed(orgId);
+  const booking = bookingUrl();
   const subscribed = Boolean(org.stripeSubscriptionId && org.subscriptionStatus && org.subscriptionStatus !== "canceled");
-  const options = (Object.keys(BILLABLE) as PlanId[]).filter((id) => id !== "dfy");
+  const options = BILLABLE;
   const base = `/app/o/${orgId}/billing`;
 
   return (
@@ -74,6 +79,22 @@ export default async function BillingPage({
 
       {sp.success && (
         <div className="form-msg ok">Thanks! Your subscription is active. It can take a few seconds for the new limits to appear.</div>
+      )}
+      {sp.choose && (sp.choose === "pro" || sp.choose === "agency") && !subscribed && configured && (
+        <div className="card choose-band">
+          <div>
+            <b>Your account is ready.</b> Finish upgrading to {PLANS[sp.choose].name} (
+            {interval === "year" ? `$${PLANS[sp.choose].yearly!.toLocaleString("en-US")}/year` : `$${PLANS[sp.choose].monthly}/month`}).
+          </div>
+          <form action={startCheckout.bind(null, orgId, sp.choose, interval)}>
+            <SubmitButton className="btn small" pendingText="Opening checkout…">
+              Continue to secure checkout
+            </SubmitButton>
+          </form>
+          <Link href={`/app/o/${orgId}/brands/new`} className="muted small">
+            Skip for now
+          </Link>
+        </div>
       )}
       {sp.canceled && <div className="notice">Checkout was canceled. You haven&apos;t been charged.</div>}
       {org.subscriptionStatus === "past_due" && <div className="form-msg error">{STATUS.past_due}</div>}
@@ -91,8 +112,13 @@ export default async function BillingPage({
           <p className="eyebrow">Current plan</p>
           <h2 style={{ fontSize: 28, margin: "4px 0" }}>{plan.name}</h2>
           <p className="muted">
-            {plan.monthly ? `$${org.billingInterval === "year" ? plan.annualMonthly : plan.monthly}/mo` : "Free"}
-            {org.billingInterval === "year" && " billed annually"}
+            {plan.id === "dfy"
+              ? "Custom plan"
+              : plan.monthly
+                ? org.billingInterval === "year"
+                  ? `$${plan.yearly!.toLocaleString("en-US")}/year`
+                  : `$${plan.monthly}/month`
+                : "No card on file"}
             {org.subscriptionStatus && ` · ${STATUS[org.subscriptionStatus] ?? org.subscriptionStatus}`}
           </p>
           {org.currentPeriodEnd && (
@@ -112,8 +138,10 @@ export default async function BillingPage({
           <p className="eyebrow">Usage</p>
           <Meter label="Brands" used={brandCount} limit={plan.brands} />
           <Meter label="Tracked prompts" used={promptCount} limit={plan.prompts} />
+          {plan.seats !== null && <Meter label="Team seats" used={seats} limit={plan.seats} />}
+          {plan.manualRuns > 0 && <Meter label="On-demand re-checks this month" used={runsLeft.used} limit={plan.manualRuns} />}
           <p className="muted small">
-            {plan.engineSlots} AI engines per brand · {plan.frequencies.includes("daily") ? "daily or weekly" : "weekly"} checks
+            {plan.engineSlots === 5 ? "All 5 AI engines" : `${plan.engineSlots} AI engine`} per brand · {plan.frequencies.join(" or ")} checks
           </p>
         </div>
       </section>
@@ -126,27 +154,27 @@ export default async function BillingPage({
               Monthly
             </Link>
             <Link href={`${base}?interval=year`} aria-current={interval === "year" ? "true" : undefined}>
-              Annual <span className="save">save 20%</span>
+              Yearly <span className="save">2 months free</span>
             </Link>
           </nav>
         </div>
         <div className="plans">
           {options.map((id) => {
             const p = PLANS[id];
-            const current = org.plan === id && (org.billingInterval ?? "month") === interval;
+            const current = plan.id === id && (org.billingInterval ?? "month") === interval;
             return (
               <div key={id} className={`plan card ${p.highlight ? "featured" : ""}`}>
                 {p.highlight && <div className="ribbon">Most popular</div>}
                 <h3 style={{ margin: 0 }}>{p.name}</h3>
                 <div className="price">
-                  ${interval === "year" ? p.annualMonthly : p.monthly}
+                  ${interval === "year" ? perMonthYearly(p) : p.monthly}
                   <span>/mo</span>
                 </div>
                 <p className="muted small">
-                  {interval === "year" ? `$${(p.annualMonthly * 12).toLocaleString("en-US")} billed yearly` : "billed monthly"}
+                  {interval === "year" ? `$${p.yearly!.toLocaleString("en-US")} billed yearly` : "billed monthly"}
                 </p>
                 <ul>
-                  {p.features.map((f) => (
+                  {p.bullets.map((f) => (
                     <li key={f}>{f}</li>
                   ))}
                 </ul>
@@ -174,18 +202,13 @@ export default async function BillingPage({
             </p>
           </div>
           <div className="dfy-price">
-            <div className="price">
-              ${PLANS.dfy.monthly}
-              <span>/mo</span>
-            </div>
+            <div className="price quote">Custom quote</div>
             {org.plan === "dfy" ? (
-              <span className="btn ghost">Current plan</span>
+              <span className="btn ghost">Your current plan</span>
             ) : (
-              <form action={startCheckout.bind(null, orgId, "dfy", "month")}>
-                <SubmitButton className="btn full" pendingText="Opening checkout…">
-                  {configured ? "Start Done For You" : "Coming soon"}
-                </SubmitButton>
-              </form>
+              <a className="btn full" href={booking} target={booking.startsWith("http") ? "_blank" : undefined} rel="noreferrer">
+                Book a call
+              </a>
             )}
           </div>
         </div>

@@ -20,7 +20,7 @@ async function billingOwner(orgId: string) {
 /** Sends the owner to Stripe Checkout, or to the billing portal if they already subscribe. */
 export async function startCheckout(orgId: string, plan: PlanId, interval: Interval) {
   const { user, org } = await billingOwner(orgId);
-  if (!BILLABLE[plan]?.includes(interval)) throw new Error("That plan can't be bought online");
+  if (!BILLABLE.includes(plan) || (interval !== "month" && interval !== "year")) throw new Error("That plan can't be bought online");
   const base = await appUrl();
 
   // Existing subscribers change plans in the portal so Stripe prorates correctly.
@@ -57,8 +57,12 @@ export async function startCheckout(orgId: string, plan: PlanId, interval: Inter
 export async function openBillingPortal(orgId: string) {
   const { org } = await billingOwner(orgId);
   if (!org.stripeCustomerId) redirect(`/app/o/${orgId}/billing`);
+  // Use the portal set up by `npm run stripe:setup` (allows switching Pro ⇄ Agency); fall back to Stripe's default.
+  const configs = await stripe().billingPortal.configurations.list({ active: true, limit: 100 });
+  const configuration = configs.data.find((c) => c.metadata?.aeo_portal === "1")?.id;
   const session = await stripe().billingPortal.sessions.create({
     customer: org.stripeCustomerId,
+    ...(configuration ? { configuration } : {}),
     return_url: `${await appUrl()}/app/o/${orgId}/billing`,
   });
   redirect(session.url);

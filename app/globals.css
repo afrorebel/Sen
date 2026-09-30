@@ -1070,8 +1070,7 @@ h1, h2, h3, .section-head h2, .mkt-hero h1 { word-spacing: 0.06em; }
   .pm-group th { position: static; }
   .pm-engines-cell { align-items: flex-end; }
   .plan-matrix:has(input[value="free"]:checked) [data-col="free"],
-  .plan-matrix:has(input[value="starter"]:checked) [data-col="starter"],
-  .plan-matrix:has(input[value="growth"]:checked) [data-col="growth"],
+  .plan-matrix:has(input[value="pro"]:checked) [data-col="pro"],
   .plan-matrix:has(input[value="agency"]:checked) [data-col="agency"],
   .plan-matrix:has(input[value="dfy"]:checked) [data-col="dfy"] { display: table-cell; }
   .pm-table .hl { background: transparent; }
@@ -1149,3 +1148,42 @@ h1, h2, h3, .section-head h2, .mkt-hero h1 { word-spacing: 0.06em; }
 .opp .rec-top { gap: 4px; }
 .opp .rec-top .lvl-pill, .opp .rec-top .pill-sm { padding: 2px 7px; font-size: 11px; }
 .opp .rec-top .lvl { transform: scale(.9); }
+
+/* Two-tier pricing */
+.billing-toggle { margin-top: 22px; }
+.plans-3 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr)); max-width: 1080px; margin-left: auto; margin-right: auto; }
+.plans-3 .plan { padding: 26px; }
+.plans-3 .plan ul { flex: 1; }
+.plans-3 .plan > .btn { margin-top: auto; text-align: center; }
+.price.quote { font-size: 28px; }
+.pm-quote { color: var(--accent); text-decoration: none; }
+.pm-quote:hover { text-decoration: underline; }
+
+/* ---------------- Plan gates ---------------- */
+.gate { position: relative; border-radius: var(--radius); overflow: hidden; min-height: 320px; }
+.gate.compact { min-height: 220px; }
+.gate-preview { filter: blur(5px) saturate(.7); opacity: .55; pointer-events: none; user-select: none; max-height: 560px; overflow: hidden; }
+.gate.compact .gate-preview { max-height: 300px; }
+.gate::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(252,248,243,.15), rgba(252,248,243,.85) 70%); pointer-events: none; }
+.gate-card { position: absolute; z-index: 2; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100% - 32px)); text-align: center; display: grid; gap: 8px; justify-items: center; padding: 24px; box-shadow: var(--shadow); }
+.gate-card h3 { margin: 0; font-size: 17px; }
+.gate-card p { margin: 0; color: var(--ink-2); font-size: 13.5px; line-height: 1.5; }
+.gate-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); background: var(--accent-soft); padding: 4px 10px; border-radius: 999px; }
+.upgrade-note { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); background: var(--surface-3); border: 1px dashed var(--border); border-radius: 12px; padding: 10px 14px; }
+.upgrade-note svg { color: var(--accent); flex: none; }
+.upgrade-link { margin-left: auto; font-weight: 700; color: var(--accent); text-decoration: none; }
+.side-lock { margin-left: auto; color: var(--ink-3); display: inline-flex; }
+.side-upgrade { margin: 8px 4px 4px; padding: 14px; border-radius: 14px; background: var(--ink); color: #F3F1EE; display: grid; gap: 6px; }
+.side-upgrade b { font-size: 13.5px; }
+.side-upgrade span { font-size: 12px; color: #A8B2C4; line-height: 1.45; }
+.side-upgrade .btn { justify-self: start; margin-top: 4px; }
+@media (max-width: 640px) { .gate { min-height: 360px; } }
+.wl-logo { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 12px; border: 1px dashed var(--border); border-radius: 12px; }
+.wl-logo img { height: 40px; max-width: 160px; object-fit: contain; }
+.wl-logo label { display: grid; gap: 4px; }
+.choose-band { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; border: 2px solid var(--accent); }
+.choose-band > div { flex: 1 1 260px; font-size: 14px; }
+.plans-3 .plan { display: flex; flex-direction: column; gap: 6px; }
+.plans-3 .plan ul { flex: 1 1 auto; }
+.gate-preview { filter: blur(3.5px) saturate(.8); opacity: .8; }
+.gate::after { background: linear-gradient(180deg, rgba(252,248,243,0), rgba(252,248,243,.75) 75%); }

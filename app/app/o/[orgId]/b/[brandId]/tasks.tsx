@@ -2,6 +2,7 @@ import Link from "next/link";
 import { recommendationToTask, setRecommendationState, toggleRecStep } from "@/app/actions/brands";
 import { AutoSubmitForm } from "@/app/components/auto-submit";
 import { SubmitButton } from "@/app/components/forms";
+import { Gate, UpgradeNote } from "@/app/components/gate";
 import { Empty } from "@/app/components/ui";
 import type { BrandReport, Recommendation } from "@/lib/tracking/report";
 
@@ -124,7 +125,20 @@ function StepList({ rec, brandId, canEdit }: { rec: Recommendation; brandId: str
   );
 }
 
-export function Tasks({ report, base, filters, canEdit }: { report: BrandReport; base: string; filters: TaskFilters; canEdit: boolean }) {
+export function Tasks({
+  report,
+  base,
+  filters,
+  canEdit,
+  limited,
+}: {
+  report: BrandReport;
+  base: string;
+  filters: TaskFilters;
+  canEdit: boolean;
+  /** Free plan: only the top 3 opportunities are usable; the full table is shown locked. */
+  limited?: { billingHref: string; canUpgrade: boolean };
+}) {
   const all = report.recommendations;
   const status = STATUSES.some((s) => s.id === filters.status) ? filters.status! : "active";
   const q = (filters.q ?? "").trim().toLowerCase();
@@ -174,6 +188,8 @@ export function Tasks({ report, base, filters, canEdit }: { report: BrandReport;
         )}
       </div>
 
+      {!limited && (
+        <>
       <div className="task-toolbar">
         <nav className="seg-tabs" aria-label="Task status">
           {STATUSES.map((s) => (
@@ -212,7 +228,10 @@ export function Tasks({ report, base, filters, canEdit }: { report: BrandReport;
         </span>
       </div>
 
-      {status === "active" && top.length > 0 && !q && !cat && (
+        </>
+      )}
+
+      {(limited || (status === "active" && !q && !cat)) && top.length > 0 && (
         <section className="stack">
           <h2 className="section-title">Top opportunities</h2>
           <div className="top-grid">
@@ -243,6 +262,12 @@ export function Tasks({ report, base, filters, canEdit }: { report: BrandReport;
         </section>
       )}
 
+      {limited ? (
+        <>
+          <UpgradeNote {...limited}>
+            You&apos;re seeing your top 3 tasks. Pro unlocks all {all.length}, with filters, step-by-step fixes and progress tracking.
+          </UpgradeNote>
+          <Gate locked feature="tasks" title={`${Math.max(all.length - 3, 0)} more tasks ready`} body="Every fix we found across your AI answers, cited sources and site audit, ranked by impact and effort." {...limited}>
       <section className="stack">
         <h2 className="section-title">Task table</h2>
         {shown.length === 0 ? (
@@ -296,6 +321,63 @@ export function Tasks({ report, base, filters, canEdit }: { report: BrandReport;
           </div>
         )}
       </section>
+          </Gate>
+        </>
+      ) : (
+      <section className="stack">
+        <h2 className="section-title">Task table</h2>
+        {shown.length === 0 ? (
+          <Empty title="Nothing here">
+            <p className="muted">No tasks match these filters.</p>
+          </Empty>
+        ) : (
+          <div className="card task-table">
+            <div className="tt-head" aria-hidden>
+              <span>Description</span>
+              <span>Opportunity</span>
+              <span>Impact</span>
+              <span>Effort</span>
+              <span>Category</span>
+              <span>Actions</span>
+            </div>
+            {shown.map((r) => (
+              <div key={r.id} className={`tt-row ${r.state ?? ""}`}>
+                <div className="tt-desc">
+                  <b>{r.title}</b>
+                  <p>{r.detail}</p>
+                  <div className="evidence">
+                    {r.evidence.slice(0, 3).map((e) => (
+                      <span key={e} className="pill-sm">
+                        {e}
+                      </span>
+                    ))}
+                  </div>
+                  <StepList rec={r} brandId={report.brand.id} canEdit={canEdit} />
+                </div>
+                <div className="tt-cell" data-label="Opportunity">
+                  <span className="pill-sm prio">◎ {r.priority}</span>
+                </div>
+                <div className="tt-cell" data-label="Impact">
+                  <Level value={r.impact} />
+                </div>
+                <div className="tt-cell" data-label="Effort">
+                  <Level value={r.effort} />
+                </div>
+                <div className="tt-cell tt-cat" data-label="Category">
+                  <span className={`cat-badge ${r.category.toLowerCase()}`}>{r.category}</span>
+                  <span className="pill-sm" title={r.type}>
+                    {r.type}
+                  </span>
+                </div>
+                <div className="tt-cell" data-label="Actions">
+                  {canEdit ? <Actions rec={r} brandId={report.brand.id} /> : <span className="muted small">{r.state ?? "open"}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+      )}
     </div>
   );
 }

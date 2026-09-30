@@ -1,13 +1,28 @@
 "use client";
 
-import { useActionState, type ReactNode } from "react";
+import { createContext, startTransition, useActionState, useContext, type FormEvent, type ReactNode } from "react";
+
+/** Pending state for ActionForm, which submits via a transition (useFormStatus doesn't see it). */
+const Pending = createContext(false);
 import { useFormStatus } from "react-dom";
 import type { FormState } from "@/app/actions/auth";
 
-export function SubmitButton({ children, className = "btn", pendingText }: { children: ReactNode; className?: string; pendingText?: string }) {
-  const { pending } = useFormStatus();
+export function SubmitButton({
+  children,
+  className = "btn",
+  pendingText,
+  disabled = false,
+}: {
+  children: ReactNode;
+  className?: string;
+  pendingText?: string;
+  disabled?: boolean;
+}) {
+  const status = useFormStatus();
+  const viaTransition = useContext(Pending);
+  const pending = status.pending || viaTransition;
   return (
-    <button className={className} disabled={pending} aria-busy={pending}>
+    <button className={className} disabled={pending || disabled} aria-busy={pending}>
       {pending ? (pendingText ?? "Working…") : children}
     </button>
   );
@@ -25,14 +40,22 @@ export function ActionForm({
   className?: string;
   resetOnSuccess?: boolean;
 }) {
-  const [state, formAction] = useActionState(action, {});
+  const [state, formAction, isPending] = useActionState(action, {});
+  // Submitting through onSubmit (instead of letting React run the action) stops React 19 from
+  // clearing every field, so people keep what they typed when the server returns an error.
+  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const data = new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter);
+    startTransition(() => formAction(data));
+  };
   return (
     <form
       action={formAction}
+      onSubmit={onSubmit}
       className={className}
       key={resetOnSuccess && state.ok ? state.ok + Math.random() : undefined}
     >
-      {children}
+      <Pending.Provider value={isPending}>{children}</Pending.Provider>
       {state.error && (
         <p className="form-msg error" role="alert">
           {state.error}

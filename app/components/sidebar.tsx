@@ -5,7 +5,7 @@ import { useParams, usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
 export interface SidebarProps {
-  org: { id: string; name: string; planName: string; doneForYou: boolean };
+  org: { id: string; name: string; planName: string; doneForYou: boolean; free: boolean; locked: string[] };
   orgs: { id: string; name: string }[];
   brands: { id: string; name: string; domain: string }[];
   role: "owner" | "member" | "client";
@@ -36,11 +36,20 @@ function Icon({ d }: { d: string }) {
   );
 }
 
-function Item({ href, icon, label, active }: { href: string; icon: string; label: string; active: boolean }) {
+const LOCK = "M7 11V7a5 5 0 0 1 10 0v4M5 11h14v10H5z";
+
+function Item({ href, icon, label, active, locked = false }: { href: string; icon: string; label: string; active: boolean; locked?: boolean }) {
   return (
     <Link href={href} className={`side-item ${active ? "active" : ""}`} aria-current={active ? "page" : undefined}>
       <Icon d={icon} />
       <span>{label}</span>
+      {locked && (
+        <span className="side-lock" title="Upgrade to unlock">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="Locked">
+            <path d={LOCK} />
+          </svg>
+        </span>
+      )}
     </Link>
   );
 }
@@ -121,12 +130,12 @@ export function Sidebar({ org, orgs, brands, role, user, logout }: SidebarProps)
           <Section title="Analytics">
             <Item href={brandBase} icon={I.dashboard} label="Dashboard" active={isTab("overview")} />
             <Item href={`${brandBase}?tab=prompts`} icon={I.prompts} label="Prompts" active={isTab("prompts") || pathname.includes("/checks/")} />
-            <Item href={`${brandBase}?tab=sources`} icon={I.sources} label="Sources" active={isTab("sources")} />
-            <Item href={`${brandBase}?tab=competitors`} icon={I.competitors} label="Competitors" active={isTab("competitors")} />
-            <Item href={`${brandBase}?tab=traffic`} icon={I.traffic} label="AI Traffic" active={isTab("traffic")} />
+            <Item href={`${brandBase}?tab=sources`} icon={I.sources} label="Sources" active={isTab("sources")} locked={org.locked.includes("sources")} />
+            <Item href={`${brandBase}?tab=competitors`} icon={I.competitors} label="Competitors" active={isTab("competitors")} locked={org.locked.includes("competitors")} />
+            <Item href={`${brandBase}?tab=traffic`} icon={I.traffic} label="AI Traffic" active={isTab("traffic")} locked={org.locked.includes("traffic")} />
             <Item href={`${brandBase}?tab=tasks`} icon={I.tasks} label="Tasks" active={isTab("tasks")} />
             <Item href={`${brandBase}?tab=audit`} icon={I.audit} label="Site audit" active={isTab("audit")} />
-            <Item href={`${brandBase}?tab=reports`} icon={I.reports} label="Reports" active={isTab("reports")} />
+            <Item href={`${brandBase}?tab=reports`} icon={I.reports} label="Reports" active={isTab("reports")} locked={org.locked.includes("reports")} />
             {role !== "client" && <Item href={`${brandBase}?tab=settings`} icon={I.settings} label="Brand settings" active={isTab("settings")} />}
           </Section>
         )}
@@ -139,6 +148,16 @@ export function Sidebar({ org, orgs, brands, role, user, logout }: SidebarProps)
           {role === "owner" && <Item href={`${base}/billing`} icon={I.billing} label="Billing" active={pathname.startsWith(`${base}/billing`)} />}
         </Section>
       </nav>
+
+      {org.free && role === "owner" && (
+        <div className="side-upgrade">
+          <b>You&apos;re on the Free plan</b>
+          <span>Unlock all 5 AI engines, competitors, sources, AI traffic and monthly reports.</span>
+          <Link href={`${base}/billing`} className="btn small">
+            Upgrade to Pro
+          </Link>
+        </div>
+      )}
 
       <details className="side-user">
         <summary>

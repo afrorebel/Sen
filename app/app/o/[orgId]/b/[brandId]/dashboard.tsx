@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { UpgradeNote } from "@/app/components/gate";
 import { recommendationToTask, setRecommendationState } from "@/app/actions/brands";
 import { SubmitButton } from "@/app/components/forms";
 import { EngineIcon, Favicon } from "@/app/components/logo";
@@ -320,7 +321,18 @@ function RecCard({ rec, brandId, canEdit }: { rec: Recommendation; brandId: stri
   );
 }
 
-export function Recommendations({ report, canEdit }: { report: BrandReport; canEdit: boolean }) {
+export function Recommendations({
+  report,
+  canEdit,
+  limit,
+  upgrade,
+}: {
+  report: BrandReport;
+  canEdit: boolean;
+  /** Free plan: show only the first few. */
+  limit?: number;
+  upgrade?: { billingHref: string; canUpgrade: boolean };
+}) {
   const recs = report.recommendations;
   if (!recs.length) return null;
   const done = recs.filter((r) => r.state === "done").length;
@@ -343,10 +355,15 @@ export function Recommendations({ report, canEdit }: { report: BrandReport; canE
         </span>
       </div>
       <div className="carousel">
-        {open.slice(0, 8).map((r) => (
+        {open.slice(0, limit ?? 8).map((r) => (
           <RecCard key={r.id} rec={r} brandId={report.brand.id} canEdit={canEdit} />
         ))}
       </div>
+      {upgrade && limit && open.length > limit && (
+        <UpgradeNote {...upgrade}>
+          {open.length - limit} more tasks with step-by-step fixes are waiting for you on Pro.
+        </UpgradeNote>
+      )}
     </section>
   );
 }

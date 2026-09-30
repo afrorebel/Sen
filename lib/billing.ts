@@ -3,17 +3,13 @@ import { eq } from "drizzle-orm";
 import Stripe from "stripe";
 import { db } from "./db";
 import { organizations } from "./db/schema";
-import { PLANS, type PlanId } from "./plans";
+import { syncBrandsToPlan } from "./limits";
+import { planFor, type PlanId } from "./plans";
 
 export type Interval = "month" | "year";
 
-/** Plans that can be bought online, and the intervals each offers. */
-export const BILLABLE: Partial<Record<PlanId, Interval[]>> = {
-  starter: ["month", "year"],
-  growth: ["month", "year"],
-  agency: ["month", "year"],
-  dfy: ["month"],
-};
+/** Plans that can be bought online. Done For You is quote-only and assigned by staff. */
+export const BILLABLE: PlanId[] = ["pro", "agency"];
 
 /**
  * Prices are found by lookup key rather than hard-coded price IDs, so the same code works in
@@ -23,8 +19,11 @@ export const lookupKey = (plan: PlanId, interval: Interval) => `aeo_${plan}_${in
 
 export function parseLookupKey(key: string | null | undefined): { plan: PlanId; interval: Interval } | null {
   const m = key?.match(/^aeo_([a-z]+)_(month|year)$/);
-  if (!m || !(m[1] in PLANS)) return null;
-  return { plan: m[1] as PlanId, interval: m[2] as Interval };
+  if (!m) return null;
+  // planFor maps retired plan ids (starter, growth) onto the current ones; unknown ids fall back to free.
+  const plan = planFor(m[1]).id;
+  if (plan === "free") return null;
+  return { plan, interval: m[2] as Interval };
 }
 
 export function billingConfigured(): boolean {
@@ -62,13 +61,12 @@ export async function applySubscription(sub: Stripe.Subscription): Promise<strin
   // Ignore events for an older subscription after the customer switched to a new one.
   if (org.stripeSubscriptionId && org.stripeSubscriptionId !== sub.id && sub.status === "canceled") return orgId;
 
-  const plan: PlanId = live && parsed ? parsed.plan : "free";
+  // Done For You is assigned by staff after a sales call; subscription events never change it.
+  const plan: PlanId = org.plan === "dfy" ? "dfy" : live && parsed ? parsed.plan : "free";
   await db
     .update(organizations)
     .set({
       plan,
-      // Done-for-you status follows the DFY subscription, but a staff-set flag survives other plan changes.
-      doneForYou: plan === "dfy" ? true : org.plan === "dfy" ? false : org.doneForYou,
       stripeCustomerId: typeof sub.customer === "string" ? sub.customer : sub.customer.id,
       stripeSubscriptionId: sub.id,
       subscriptionStatus: sub.status,
@@ -77,5 +75,9 @@ export async function applySubscription(sub: Stripe.Subscription): Promise<strin
       cancelAtPeriodEnd: sub.cancel_at_period_end,
     })
     .where(eq(organizations.id, orgId));
+  const before = planFor(org.plan).id;
+  if (before !== plan) await syncBrandsToPlan(orgId, plan, RANK[plan] > RANK[before]);
   return orgId;
 }
+
+const RANK: Record<PlanId, number> = { free: 0, pro: 1, agency: 2, dfy: 3 };

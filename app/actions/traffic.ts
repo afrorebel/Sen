@@ -6,6 +6,7 @@ import { requireOrg, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { brands } from "@/lib/db/schema";
 import { ingestLogs, newTrafficToken, parseLogs } from "@/lib/traffic";
+import { hasFeature } from "@/lib/plans";
 import type { FormState } from "./auth";
 
 const MAX_UPLOAD = 20 * 1024 * 1024;
@@ -16,6 +17,7 @@ async function editableBrand(brandId: string) {
   if (!brand) throw new Error("Brand not found");
   const access = await requireOrg(user, brand.orgId);
   if (!access.canEdit) throw new Error("You have view-only access to this workspace");
+  if (!hasFeature(access.org.plan, "traffic")) throw new Error("AI Traffic is included in Pro and Agency.");
   return brand;
 }
 

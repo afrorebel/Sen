@@ -2,7 +2,8 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { and, eq, gte, sql } from "drizzle-orm";
 import { db } from "./db";
-import { aiTraffic, brands } from "./db/schema";
+import { aiTraffic, brands, organizations } from "./db/schema";
+import { hasFeature } from "./plans";
 
 /** AI crawlers we recognise in server logs, by user-agent token. Order matters: specific before generic. */
 export const AI_CRAWLERS: { name: string; owner: string; purpose: "search" | "user" | "training"; re: RegExp }[] = [
@@ -167,15 +168,26 @@ const TOKEN_RE = /^[A-Za-z0-9_-]{20,64}$/;
 /** Finds a brand by its public snippet key (safe to expose in page source). */
 export async function brandByTrafficToken(token: string) {
   if (!TOKEN_RE.test(token)) return null;
-  const [b] = await db.select({ id: brands.id }).from(brands).where(eq(brands.trafficToken, token)).limit(1);
-  return b ?? null;
+  const [b] = await db
+    .select({ id: brands.id, plan: organizations.plan })
+    .from(brands)
+    .innerJoin(organizations, eq(organizations.id, brands.orgId))
+    .where(eq(brands.trafficToken, token))
+    .limit(1);
+  // Keys stop counting if the workspace moves to a plan without AI Traffic.
+  return b && hasFeature(b.plan, "traffic") ? { id: b.id } : null;
 }
 
 /** Finds a brand by its secret log-drain key. */
 export async function brandByDrainToken(token: string) {
   if (!TOKEN_RE.test(token)) return null;
-  const [b] = await db.select({ id: brands.id }).from(brands).where(eq(brands.trafficDrainToken, token)).limit(1);
-  return b ?? null;
+  const [b] = await db
+    .select({ id: brands.id, plan: organizations.plan })
+    .from(brands)
+    .innerJoin(organizations, eq(organizations.id, brands.orgId))
+    .where(eq(brands.trafficDrainToken, token))
+    .limit(1);
+  return b && hasFeature(b.plan, "traffic") ? { id: b.id } : null;
 }
 
 export const newTrafficToken = () => randomBytes(18).toString("base64url");

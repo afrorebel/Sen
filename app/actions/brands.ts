@@ -10,7 +10,8 @@ import { runAudit } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { audits, brands, prompts, tasks, type Competitor } from "@/lib/db/schema";
 import { countryByIso, inferIntent } from "@/lib/locations";
-import { defaultEngines, planFor } from "@/lib/plans";
+import { manualRunAllowance } from "@/lib/limits";
+import { defaultEngines, hasFeature, planFor, type Feature } from "@/lib/plans";
 import { normalizeDomain } from "@/lib/tracking/analyze";
 import { isEngine } from "@/lib/tracking/engines";
 import { processPending, startRun } from "@/lib/tracking/runner";
@@ -46,6 +47,11 @@ async function editableBrand(brandId: string) {
   const access = await requireOrg(user, brand.orgId);
   if (!access.canEdit) throw new Error("You have view-only access to this workspace");
   return { user, brand, ...access };
+}
+
+/** Throws for a paid feature the workspace's plan doesn't include (the UI hides these, this is the backstop). */
+function requireFeature(org: { plan: string }, feature: Feature) {
+  if (!hasFeature(org.plan, feature)) throw new Error(`Your ${planFor(org.plan).name} plan doesn't include this. Upgrade on the Billing page.`);
 }
 
 async function promptCount(orgId: string) {
@@ -100,14 +106,14 @@ export async function createBrand(orgId: string, _: FormState, form: FormData): 
       countryIso: country.iso,
       city: input.city || null,
       engines: defaultEngines(plan),
-      frequency: "weekly",
+      frequency: plan.frequencies.includes("weekly") ? "weekly" : plan.frequencies[0],
       nextRunAt: null,
     })
     .returning({ id: brands.id });
 
   if (promptLines.length) {
     await db.insert(prompts).values(promptLines.map((text) => ({ brandId: brand.id, text, intent: inferIntent(text, input.city) })));
-    await startRun(brand.id, "manual");
+    await startRun(brand.id, "schedule");
     after(() => processPending({ budgetMs: 240_000 }).catch(console.error));
   }
   redirect(`/app/o/${orgId}/b/${brand.id}`);
@@ -121,7 +127,7 @@ const SettingsSchema = z.object({
   city: z.string().trim().max(80).optional(),
   aliases: z.string().default(""),
   competitors: z.string().default(""),
-  frequency: z.enum(["weekly", "daily"]),
+  frequency: z.enum(["monthly", "weekly", "daily"]),
 });
 
 export async function updateBrand(brandId: string, _: FormState, form: FormData): Promise<FormState> {
@@ -137,7 +143,7 @@ export async function updateBrand(brandId: string, _: FormState, form: FormData)
     return { error: `Your ${plan.name} plan tracks up to ${plan.engineSlots} engines per brand.` };
   }
   if (!plan.frequencies.includes(input.frequency)) {
-    return { error: `Daily tracking is available on Growth and above.` };
+    return { error: `${input.frequency[0].toUpperCase() + input.frequency.slice(1)} tracking isn't included in the ${plan.name} plan.` };
   }
 
   const country = countryByIso(input.country);
@@ -186,7 +192,9 @@ export async function removePrompt(promptId: string) {
 }
 
 export async function runNow(brandId: string) {
-  const { brand } = await editableBrand(brandId);
+  const { brand, org } = await editableBrand(brandId);
+  const { left } = await manualRunAllowance(org.id, org.plan);
+  if (left <= 0) return;
   await startRun(brandId, "manual");
   after(() => processPending({ budgetMs: 240_000 }).catch(console.error));
   revalidatePath(`/app/o/${brand.orgId}/b/${brandId}`);
@@ -234,7 +242,8 @@ export async function recommendationToTask(brandId: string, rec: { id: string; t
 }
 
 export async function updateReportRecipients(brandId: string, _: FormState, form: FormData): Promise<FormState> {
-  const { brand } = await editableBrand(brandId);
+  const { brand, org } = await editableBrand(brandId);
+  if (!hasFeature(org.plan, "reports")) return { error: "Monthly report emails are included in Pro and Agency." };
   const emails = String(form.get("recipients") ?? "")
     .split(/[\s,;]+/)
     .map((e) => e.trim().toLowerCase())
@@ -271,7 +280,8 @@ async function saveCompetitors(brand: typeof brands.$inferSelect, patch: Partial
 }
 
 export async function addCompetitor(brandId: string, _: FormState, form: FormData): Promise<FormState> {
-  const { brand } = await editableBrand(brandId);
+  const { brand, org } = await editableBrand(brandId);
+  if (!hasFeature(org.plan, "competitors")) return { error: "Competitor management is included in Pro and Agency." };
   const name = String(form.get("name") ?? "").trim().slice(0, 80);
   const domainRaw = String(form.get("domain") ?? "").trim();
   const key = form.get("key") === "on";
@@ -289,20 +299,23 @@ export async function addCompetitor(brandId: string, _: FormState, form: FormDat
 
 /** Starts tracking a brand the AI engines recommended (from the suggestions list). */
 export async function trackSuggested(brandId: string, name: string) {
-  const { brand } = await editableBrand(brandId);
+  const { brand, org } = await editableBrand(brandId);
+  requireFeature(org, "competitors");
   if (brand.competitors.some((c) => same(c.name, name))) return;
   await saveCompetitors(brand, { competitors: [...brand.competitors, { name: name.slice(0, 80) }] });
 }
 
 export async function setKeyCompetitor(brandId: string, name: string, key: boolean) {
-  const { brand } = await editableBrand(brandId);
+  const { brand, org } = await editableBrand(brandId);
+  requireFeature(org, "competitors");
   const others = brand.keyCompetitors.filter((n) => !same(n, name));
   if (key && others.length >= MAX_KEY) return;
   await saveCompetitors(brand, { keyCompetitors: key ? [...others, name] : others });
 }
 
 export async function removeCompetitor(brandId: string, name: string) {
-  const { brand } = await editableBrand(brandId);
+  const { brand, org } = await editableBrand(brandId);
+  requireFeature(org, "competitors");
   await saveCompetitors(brand, {
     competitors: brand.competitors.filter((c) => !same(c.name, name)),
     keyCompetitors: brand.keyCompetitors.filter((n) => !same(n, name)),
@@ -311,7 +324,8 @@ export async function removeCompetitor(brandId: string, name: string) {
 
 /** Removes a brand from rankings and share of voice (e.g. a directory or a false match). */
 export async function ignoreBrand(brandId: string, name: string) {
-  const { brand } = await editableBrand(brandId);
+  const { brand, org } = await editableBrand(brandId);
+  requireFeature(org, "competitors");
   if (same(name, brand.name)) return;
   await saveCompetitors(brand, {
     competitors: brand.competitors.filter((c) => !same(c.name, name)),
@@ -321,6 +335,7 @@ export async function ignoreBrand(brandId: string, name: string) {
 }
 
 export async function unignoreBrand(brandId: string, name: string) {
-  const { brand } = await editableBrand(brandId);
+  const { brand, org } = await editableBrand(brandId);
+  requireFeature(org, "competitors");
   await saveCompetitors(brand, { ignoredBrands: brand.ignoredBrands.filter((n) => !same(n, name)) });
 }

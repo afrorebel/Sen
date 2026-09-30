@@ -25,16 +25,22 @@ function getTransport() {
 
 const FROM = () => process.env.EMAIL_FROM || `AEO GrowthLead <${process.env.SMTP_USER ?? "hello@aeogrowthlead.com"}>`;
 
+/** Same mailbox, different display name (white-label report emails). */
+const fromAs = (name: string) => {
+  const address = FROM().match(/<([^>]+)>/)?.[1] ?? FROM();
+  return `"${name.replace(/["\\<>]/g, "")}" <${address}>`;
+};
+
 function escape(s: string) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
 /** A plain, reliable email layout: one message, one button, the link as text too. */
-function layout(opts: { heading: string; body: string; button: string; url: string; footer: string }) {
+function layout(opts: { heading: string; body: string; button: string; url: string; footer: string; sender?: string }) {
   const html = `<!doctype html><html><body style="margin:0;background:#f7f7f5;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1a1a19">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px">
 <table role="presentation" width="100%" style="max-width:520px;background:#fff;border:1px solid #e3e3de;border-radius:12px" cellpadding="0" cellspacing="0"><tr><td style="padding:28px">
-<div style="font-weight:800;font-size:18px;margin-bottom:20px">AEO<span style="color:#2a5bd7">GrowthLeads</span></div>
+<div style="font-weight:800;font-size:18px;margin-bottom:20px">${opts.sender ? escape(opts.sender) : 'AEO <span style="color:#FF5A1F">GrowthLead</span>'}</div>
 <h1 style="font-size:20px;margin:0 0 12px">${escape(opts.heading)}</h1>
 <p style="font-size:15px;line-height:1.55;color:#4a4a46;margin:0 0 22px">${escape(opts.body)}</p>
 <a href="${escape(opts.url)}" style="display:inline-block;background:#1a1a19;color:#fff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:8px">${escape(opts.button)}</a>
@@ -50,14 +56,14 @@ interface Attachment {
   content: Buffer;
 }
 
-async function send(to: string | string[], subject: string, content: { html: string; text: string }, attachments: Attachment[] = []) {
+async function send(to: string | string[], subject: string, content: { html: string; text: string }, attachments: Attachment[] = [], sender?: string) {
   if (!emailConfigured()) {
     const files = attachments.map((a) => `${a.filename} (${Math.round(a.content.length / 1024)} KB)`).join(", ");
     console.log(`[email not configured] To: ${[to].flat().join(", ")}\nSubject: ${subject}\n${content.text}\n${files ? `Attachments: ${files}\n` : ""}`);
     return;
   }
   await getTransport().sendMail({
-    from: FROM(),
+    from: sender ? fromAs(sender) : FROM(),
     to,
     subject,
     ...content,
@@ -95,7 +101,7 @@ export async function sendInviteEmail(to: string, name: string, workspace: strin
 
 export async function sendReportEmail(
   to: string[],
-  r: { brandName: string; periodLabel: string; score: number | null; summary: string[]; attachment: Attachment },
+  r: { brandName: string; periodLabel: string; score: number | null; summary: string[]; attachment: Attachment; sender?: string },
 ) {
   const url = `${process.env.APP_URL?.replace(/\/$/, "") ?? ""}/app`;
   const body = `${r.score != null ? `AEO score: ${r.score}/100. ` : ""}${r.summary.join(" ")} The full report is attached as a PDF.`;
@@ -108,7 +114,9 @@ export async function sendReportEmail(
       button: "Open the live dashboard",
       url,
       footer: "You're receiving this because you're on the monthly report list for this brand. Reply to this email to change that.",
+      sender: r.sender,
     }),
     [r.attachment],
+    r.sender,
   );
 }

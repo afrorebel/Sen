@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PLANS } from "@/lib/plans";
 
 /**
  * "What you'd pay elsewhere" comparison. Competitor figures are from their public pricing pages
@@ -7,7 +8,7 @@ import Link from "next/link";
 const AS_OF = "September 2026";
 
 const COLUMNS = [
-  { name: "AEO GrowthLead", sub: "Starter", price: 49, prompts: 50, engines: "Any 3 of 5", audit: true, pdf: true, dfy: "From $799/mo", us: true },
+  { name: "AEO GrowthLead", sub: "Pro", price: PLANS.pro.monthly!, prompts: PLANS.pro.prompts, engines: "All 5", audit: true, pdf: true, dfy: "Custom quote", us: true },
   { name: "Semrush", sub: "AI Visibility toolkit", price: 99, prompts: 25, engines: "ChatGPT, Gemini, Google AI", audit: true, pdf: false, dfy: "No" },
   { name: "Semrush One", sub: "Starter", price: 199, prompts: 50, engines: "ChatGPT, Gemini, Google AI", audit: true, pdf: false, dfy: "No" },
   { name: "Otterly", sub: "Standard", price: 189, prompts: 100, engines: "4 platforms", audit: true, pdf: false, dfy: "No" },
@@ -119,8 +120,8 @@ export function PriceCompare() {
         </table>
       </div>
       <p className="compare-note">
-        You save {money((COLUMNS[1].price - ours.price) * 12)} a year versus Semrush&apos;s AI Visibility toolkit while tracking
-        twice as many prompts. Competitor plans and prices are taken from their public pricing pages as of {AS_OF} and may have
+        You save {money((COLUMNS[1].price - ours.price) * 12)} a year versus Semrush&apos;s AI Visibility toolkit while tracking{" "}
+        {Math.round(ours.prompts / COLUMNS[1].prompts)}× as many prompts on all five engines. Competitor plans and prices are taken from their public pricing pages as of {AS_OF} and may have
         changed. Agency figure is the entry retainer commonly quoted for AEO services.
       </p>
       <div className="compare-cta">

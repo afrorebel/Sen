@@ -624,11 +624,13 @@ export function Settings({ brand, planId }: { brand: typeof brands.$inferSelect;
         </fieldset>
         <label>
           Frequency
-          <select name="frequency" defaultValue={brand.frequency}>
-            <option value="weekly">Weekly</option>
-            <option value="daily" disabled={!plan.frequencies.includes("daily")}>
-              Daily{plan.frequencies.includes("daily") ? "" : " (Growth and above)"}
-            </option>
+          <select name="frequency" defaultValue={plan.frequencies.includes(brand.frequency) ? brand.frequency : plan.frequencies[0]}>
+            {(["monthly", "weekly", "daily"] as const).map((f) => (
+              <option key={f} value={f} disabled={!plan.frequencies.includes(f)}>
+                {f[0].toUpperCase() + f.slice(1)}
+                {plan.frequencies.includes(f) ? "" : f === "weekly" ? " (Pro and Agency)" : f === "daily" ? " (Done For You)" : ""}
+              </option>
+            ))}
           </select>
         </label>
         <SubmitButton>Save settings</SubmitButton>

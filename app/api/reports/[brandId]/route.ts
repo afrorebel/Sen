@@ -2,7 +2,8 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getUser, getOrgs } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { brands } from "@/lib/db/schema";
+import { brands, organizations } from "@/lib/db/schema";
+import { hasFeature } from "@/lib/plans";
 import { renderMonthlyReport } from "@/lib/reports/send";
 
 export const runtime = "nodejs";
@@ -17,6 +18,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ bran
   if (!brand) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (!user.isStaff && !(await getOrgs(user.id)).some((m) => m.org.id === brand.orgId)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  const [org] = await db.select({ plan: organizations.plan }).from(organizations).where(eq(organizations.id, brand.orgId));
+  if (!hasFeature(org?.plan ?? "free", "reports")) {
+    return NextResponse.json({ error: "PDF reports are included in Pro and Agency. Upgrade on the Billing page." }, { status: 402 });
   }
   const period = new URL(request.url).searchParams.get("period") ?? new Date().toISOString().slice(0, 7);
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) return NextResponse.json({ error: "Invalid period" }, { status: 400 });

@@ -2,11 +2,12 @@ import Link from "next/link";
 import { EngineIcon } from "./components/logo";
 import { PriceCompare } from "./components/price-compare";
 import { SiteFooter, SiteHeader } from "./components/site-header";
+import { bookingUrl } from "@/lib/site";
 
 export const metadata = {
   title: "AEO GrowthLead — See when AI recommends you, and who it recommends instead",
   description:
-    "Track your brand across ChatGPT, Google AI Mode, Perplexity, Gemini and Claude. Prompt tracking, cited sources, competitor share of voice, site audits and monthly PDF reports from $49/month.",
+    "Track your brand across ChatGPT, Google AI Mode, Perplexity, Gemini and Claude. Prompt tracking, cited sources, competitor share of voice, site audits and monthly PDF reports. Free plan, Pro from $66/month.",
 };
 
 const ENGINES = [
@@ -18,7 +19,7 @@ const ENGINES = [
 ];
 
 const FEATURES = [
-  { icon: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z", title: "Prompt tracking", body: "The questions your buyers ask, checked weekly or daily on every major AI engine." },
+  { icon: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z", title: "Prompt tracking", body: "The questions your buyers ask, checked every week on every major AI engine." },
   { icon: "M18 20V10M12 20V4M6 20v-6", title: "Competitor share of voice", body: "Who gets recommended instead of you, how often, and on which engines." },
   { icon: "M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7", title: "Cited sources", body: "The Reddit threads, listicles and directories the engines trust in your niche." },
   { icon: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4", title: "AEO site audit", body: "AI crawler access, schema, answer-ready content and trust signals, scored." },
@@ -39,7 +40,7 @@ const FAQ = [
   },
   {
     q: "Which AI engines do you track?",
-    a: "ChatGPT, Google AI Mode, Perplexity, Gemini and Claude. Your plan decides how many you track per brand.",
+    a: "ChatGPT, Google AI Mode, Perplexity, Gemini and Claude. Pro and Agency track all five; the Free plan tracks one.",
   },
   {
     q: "How is this different from SEO rank tracking?",
@@ -47,11 +48,11 @@ const FAQ = [
   },
   {
     q: "Can you do the work for me?",
-    a: "Yes. Our Done For You plan includes technical fixes, schema, answer-first articles, citation building and a monthly report, all tracked inside your dashboard.",
+    a: "Yes. Done For You covers technical fixes, schema, answer-first articles, citation building and a monthly report, all tracked inside your dashboard. It's priced per project after a short call.",
   },
   {
     q: "Is there a contract?",
-    a: "No. Plans are month to month and you can cancel any time from the billing page. Annual billing saves about 20%.",
+    a: "No. Pro and Agency are month to month and you can cancel any time from the billing page. Yearly billing gets you two months free.",
   },
 ];
 
@@ -70,7 +71,10 @@ function Shot({ src, alt, className = "" }: { src: string; alt: string; classNam
   );
 }
 
+export const dynamic = "force-dynamic";
+
 export default function Home() {
+  const booking = bookingUrl();
   return (
     <>
       <SiteHeader />
@@ -86,7 +90,7 @@ export default function Home() {
               </h1>
               <p className="lede">
                 Track your brand across ChatGPT, Google AI Mode, Perplexity, Gemini and Claude. See every answer, every source
-                and every competitor, then get told exactly what to fix. <b>From $49 a month.</b>
+                and every competitor, then get told exactly what to fix. <b>Start free. Pro from $66 a month.</b>
               </p>
               <div className="hero-cta">
                 <Link href="/signup" className="btn big">
@@ -117,8 +121,8 @@ export default function Home() {
               <span>AI engines tracked</span>
             </div>
             <div>
-              <b>$0.98</b>
-              <span>per tracked prompt on Starter</span>
+              <b>$0.79</b>
+              <span>per tracked prompt on Pro</span>
             </div>
             <div>
               <b>16</b>
@@ -284,8 +288,8 @@ export default function Home() {
                 Business Profile. You follow every task and deliverable in your dashboard.
               </p>
               <div className="hero-cta">
-                <a className="btn big" href="https://aeogrowthlead.com/aeo.html">
-                  See the done-for-you service
+                <a className="btn big" href={booking} target={booking.startsWith("http") ? "_blank" : undefined} rel="noreferrer">
+                  Book a call for a quote
                 </a>
               </div>
             </div>

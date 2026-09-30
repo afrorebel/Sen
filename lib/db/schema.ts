@@ -61,6 +61,10 @@ export const organizations = pgTable("organizations", {
   billingInterval: text("billing_interval").$type<"month" | "year">(),
   currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
   cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+  /** White-label (Agency): name and logo shown on PDF reports and report emails instead of ours. */
+  reportName: text("report_name"),
+  /** Logo as a small PNG/JPEG data URI (max ~300 KB), so it renders in PDFs without a file store. */
+  reportLogo: text("report_logo"),
   createdAt: createdAt(),
 });
 
@@ -107,7 +111,7 @@ export const brands = pgTable(
     countryIso: text("country_iso").notNull().default("US"),
     city: text("city"),
     engines: jsonb("engines").$type<string[]>().notNull().default([]),
-    frequency: text("frequency").$type<"weekly" | "daily">().notNull().default("weekly"),
+    frequency: text("frequency").$type<"monthly" | "weekly" | "daily">().notNull().default("weekly"),
     /** Recommendation id → "done" | "dismissed", so the task list remembers what was handled. */
     recState: jsonb("rec_state").$type<Record<string, "done" | "dismissed" | "saved">>().notNull().default({}),
     /** Recommendation id → indexes of completed steps. */

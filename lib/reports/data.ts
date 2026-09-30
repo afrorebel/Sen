@@ -1,7 +1,8 @@
 import "server-only";
 import { and, eq, gte, isNull, lt, or } from "drizzle-orm";
 import { db } from "../db";
-import { deliverables, tasks, type Brand } from "../db/schema";
+import { deliverables, organizations, tasks, type Brand } from "../db/schema";
+import { hasFeature } from "../plans";
 import { brandVisibility, type BrandVisibility } from "../tracking/metrics";
 import { buildBrandReport, type BrandReport } from "../tracking/report";
 
@@ -28,6 +29,26 @@ export interface MonthlyReportData {
   summary: string[];
   delivered: { id: string; title: string; typeLabel: string; deliveredAt: Date }[];
   completedTasks: { id: string; title: string; updatedAt: Date }[];
+  /** Who the report is "prepared by": us, or the agency on a white-label plan. */
+  branding: ReportBranding;
+}
+
+export interface ReportBranding {
+  name: string;
+  logo: string | null;
+  whiteLabel: boolean;
+}
+
+export const DEFAULT_BRANDING: ReportBranding = { name: "AEO GrowthLead", logo: null, whiteLabel: false };
+
+/** The workspace's white-label name and logo if its plan includes it and they've been set. */
+export async function reportBranding(orgId: string): Promise<ReportBranding> {
+  const [org] = await db
+    .select({ plan: organizations.plan, name: organizations.reportName, logo: organizations.reportLogo })
+    .from(organizations)
+    .where(eq(organizations.id, orgId));
+  if (!org || !hasFeature(org.plan, "whiteLabel") || !org.name) return DEFAULT_BRANDING;
+  return { name: org.name, logo: org.logo, whiteLabel: true };
 }
 
 export function periodBounds(period: string) {
@@ -100,5 +121,6 @@ export async function monthlyReportData(brandId: string, period: string): Promis
     summary,
     delivered: delivered.map((d) => ({ id: d.id, title: d.title, typeLabel: TYPE_LABEL[d.type] ?? d.type, deliveredAt: d.deliveredAt })),
     completedTasks: completed.map((t) => ({ id: t.id, title: t.title, updatedAt: t.updatedAt })),
+    branding: await reportBranding(brand.orgId),
   };
 }

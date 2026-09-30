@@ -2,6 +2,7 @@
 
 import { count, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import { BILLABLE, billingConfigured } from "@/lib/billing";
 import { z } from "zod";
 import { createSession, destroySession, hashPassword, verifyPassword } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -40,6 +41,12 @@ export async function signup(_: FormState, form: FormData): Promise<FormState> {
     return { userId: user.id, orgId: org.id };
   });
   await createSession(userId);
+  // Came from "Start with Pro/Agency" on the pricing page: go straight to checkout for that plan.
+  const plan = String(form.get("plan") ?? "");
+  const interval = form.get("billing") === "year" ? "year" : "month";
+  if ((BILLABLE as string[]).includes(plan) && billingConfigured()) {
+    redirect(`/app/o/${orgId}/billing?interval=${interval}&choose=${plan}`);
+  }
   redirect(`/app/o/${orgId}/brands/new`);
 }
 

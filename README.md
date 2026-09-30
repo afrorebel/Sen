@@ -33,15 +33,14 @@ The UI follows aeogrowthlead.com: navy `#0A1020`, cream `#FCF8F3`, flame `#FF5A1
 
 Defined in `lib/plans.ts`:
 
-| Plan | Price | Limits |
+| Plan | Price | What's included |
 |---|---|---|
-| Free | $0 | 1 brand, 10 prompts, 2 engines, weekly |
-| Starter | $49/mo | 1 brand, 50 prompts, 3 engines, weekly |
-| Growth | $129/mo | 3 brands, 150 prompts, 4 engines, daily or weekly |
-| Agency | $349/mo | 10 brands, 400 prompts, 5 engines, client logins |
-| Done For You | from $799/mo | Full service plus the platform |
+| Free | $0 | 1 brand, 5 prompts, 1 engine, monthly checks, AEO score, top 3 tasks, site audit. Competitors, sources, AI traffic and reports are shown locked. |
+| Pro | $79/mo or $790/yr | 3 brands, 100 prompts, all 5 engines, weekly checks + 4 re-checks/month, every feature, monthly PDF reports, 3 seats |
+| Agency | $249/mo or $2,490/yr | 15 brands, 500 prompts, 15 re-checks/month, white-label PDF reports and emails, client portal logins, unlimited seats |
+| Done For You | Custom quote | "Book a call" (`BOOKING_URL`). Staff assign the plan on the Admin page after the call; Stripe events never change it. |
 
-Limits are enforced when brands, prompts and engines are added, and again whenever a tracking run starts. Customers subscribe through Stripe on the Billing page. Staff can still set any plan by hand on the Admin page, e.g. for invoiced done-for-you clients. `npm run stripe:setup` creates the Stripe products and prices.
+Limits and features are enforced on the server, not just hidden: prompts, brands and engines when they're added and when a run starts; re-checks per calendar month; team seats and client logins on the Team page; and the paid features (`Feature` in `lib/plans.ts`) in their actions and API routes (PDF download returns 402 on Free, traffic keys stop counting, monthly auto-send skips Free). On an upgrade, brands switch to the new frequency and engines and are checked straight away. Old `starter`/`growth` plan ids map to Pro. `npm run stripe:setup` creates the Stripe products, prices and the customer portal (plan switching between Pro and Agency).
 
 ## How the tracking works
 

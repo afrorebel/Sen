@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, inArray, lte, sql } from "drizzle-orm";
 import { db } from "../db";
 import { brands, checks, organizations, prompts, runs, type Brand } from "../db/schema";
-import { planFor } from "../plans";
+import { FREQUENCY_DAYS, planFor } from "../plans";
 import { analyzeAnswer } from "./analyze";
 import { askEngine } from "./dataforseo";
 import { isEngine } from "./engines";
@@ -11,8 +11,7 @@ const MAX_ATTEMPTS = 3;
 const CONCURRENCY = Number(process.env.TRACKING_CONCURRENCY ?? 6);
 
 function nextRunFrom(brand: Pick<Brand, "frequency">, from = new Date()) {
-  const days = brand.frequency === "daily" ? 1 : 7;
-  return new Date(from.getTime() + days * 86_400_000);
+  return new Date(from.getTime() + FREQUENCY_DAYS[brand.frequency] * 86_400_000);
 }
 
 /** Creates a run with one pending check per active prompt × engine. */
@@ -37,7 +36,7 @@ export async function startRun(brandId: string, trigger: "schedule" | "manual" =
       .orderBy(prompts.createdAt)
       .limit(plan.prompts);
     const engines = brand.engines.filter(isEngine).slice(0, plan.engineSlots);
-    if (brand.frequency === "daily" && !plan.frequencies.includes("daily")) brand.frequency = "weekly";
+    if (!plan.frequencies.includes(brand.frequency)) brand.frequency = plan.frequencies.includes("weekly") ? "weekly" : plan.frequencies[0];
     const total = activePrompts.length * engines.length;
 
     await tx.update(brands).set({ nextRunAt: nextRunFrom(brand) }).where(eq(brands.id, brandId));

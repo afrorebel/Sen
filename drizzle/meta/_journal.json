@@ -36,6 +36,13 @@
       "when": 1790784372731,
       "tag": "0004_traffic_drain_token",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790786324297,
+      "tag": "0005_plans_white_label",
+      "breakpoints": true
     }
   ]
 }

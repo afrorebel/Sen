@@ -1,8 +1,8 @@
 import { Fragment, type ReactNode } from "react";
 import { EngineIcon } from "@/app/components/logo";
-import { defaultEngines, PLANS, type PlanId } from "@/lib/plans";
+import { defaultEngines, perMonthYearly, PLANS, type Feature, type PlanId } from "@/lib/plans";
 
-const COLS: PlanId[] = ["free", "starter", "growth", "agency", "dfy"];
+const COLS: PlanId[] = ["free", "pro", "agency", "dfy"];
 const ALL_ENGINES = ["chatgpt", "google_ai_mode", "perplexity", "gemini", "claude"];
 const LABEL: Record<string, string> = { chatgpt: "ChatGPT", google_ai_mode: "Google AI Mode", perplexity: "Perplexity", gemini: "Gemini", claude: "Claude" };
 
@@ -11,6 +11,8 @@ type Row = { label: string; hint?: string; cells: (id: PlanId) => Cell };
 
 const yes = (ids: PlanId[]) => (id: PlanId) => ids.includes(id);
 const ALL: PlanId[] = COLS;
+const has = (f: Feature) => (id: PlanId) => PLANS[id].features.includes(f);
+const FREQ: Record<string, string> = { monthly: "Monthly", weekly: "Weekly", daily: "Daily" };
 
 function Engines({ id }: { id: PlanId }) {
   const on = new Set<string>(defaultEngines(PLANS[id]));
@@ -33,41 +35,42 @@ const GROUPS: { title: string; rows: Row[] }[] = [
   {
     title: "Scale",
     rows: [
-      { label: "Brands", cells: (id) => String(PLANS[id].brands) },
-      { label: "Tracked prompts", cells: (id) => String(PLANS[id].prompts) },
+      { label: "Brands", cells: (id) => (id === "dfy" ? "Custom" : String(PLANS[id].brands)) },
+      { label: "Tracked prompts", cells: (id) => (id === "dfy" ? "Custom" : String(PLANS[id].prompts)) },
       { label: "AI engines per brand", hint: "ChatGPT, Google AI Mode, Perplexity, Gemini, Claude", cells: (id) => <Engines id={id} /> },
-      { label: "Tracking frequency", cells: (id) => (PLANS[id].frequencies.includes("daily") ? "Daily or weekly" : "Weekly") },
-      { label: "Site audit pages", cells: (id) => PLANS[id].auditPages.toLocaleString("en-US") },
+      { label: "Tracking frequency", cells: (id) => PLANS[id].frequencies.map((f) => FREQ[f]).join(" or ") },
+      { label: "On-demand re-checks", hint: "Extra runs per month on top of the schedule", cells: (id) => (PLANS[id].manualRuns ? `${PLANS[id].manualRuns} / month` : false) },
+      { label: "Team seats", cells: (id) => (PLANS[id].seats === null ? "Unlimited" : String(PLANS[id].seats)) },
     ],
   },
   {
     title: "Visibility",
     rows: [
-      { label: "Mention, citation and rank tracking", cells: yes(ALL) },
-      { label: "Share of voice vs competitors", cells: yes(ALL) },
-      { label: "Cited sources and source types", cells: yes(ALL) },
-      { label: "Query fan-out analysis", cells: yes(ALL) },
-      { label: "AI crawler and AI referral traffic", cells: yes(ALL) },
+      { label: "AEO score, mention and citation rates", cells: yes(ALL) },
+      { label: "Full AI answers and query fan-outs", cells: yes(ALL) },
+      { label: "AEO site audit", cells: yes(ALL) },
+      { label: "Competitors and share of voice", cells: has("competitors") },
+      { label: "Cited sources and source types", cells: has("sources") },
+      { label: "AI crawler and AI referral traffic", cells: has("traffic") },
     ],
   },
   {
     title: "Workflow",
     rows: [
-      { label: "Prioritised tasks with step checklists", cells: yes(ALL) },
-      { label: "Task board and team members", cells: yes(ALL) },
-      { label: "Monthly PDF report", cells: yes(["starter", "growth", "agency", "dfy"]) },
-      { label: "Reports emailed to clients", cells: yes(["growth", "agency", "dfy"]) },
-      { label: "Client portal logins", cells: yes(["agency", "dfy"]) },
-      { label: "White-label reports", cells: yes(["agency"]) },
+      { label: "Prioritised tasks", cells: (id) => (has("tasks")(id) ? "All, with steps" : "Top 3") },
+      { label: "Task board", cells: yes(ALL) },
+      { label: "Monthly PDF report, emailed automatically", cells: has("reports") },
+      { label: "Client portal logins", cells: has("clientPortal") },
+      { label: "White-label reports (your name and logo)", cells: (id) => id === "agency" },
     ],
   },
   {
     title: "Delivery",
     rows: [
-      { label: "Full AEO audit and technical fixes", cells: yes(["dfy"]) },
-      { label: "Schema, llms.txt and FAQ implementation", cells: yes(["dfy"]) },
-      { label: "Answer-first articles", cells: (id) => (id === "dfy" ? "4 / month" : false) },
-      { label: "Every task and deliverable in your portal", cells: yes(["dfy"]) },
+      { label: "Strategy call and custom plan", cells: yes(["dfy"]) },
+      { label: "Technical fixes, schema and llms.txt", cells: yes(["dfy"]) },
+      { label: "Answer-first articles every month", cells: yes(["dfy"]) },
+      { label: "Citation and listing outreach", cells: yes(["dfy"]) },
     ],
   },
 ];
@@ -90,17 +93,17 @@ function Value({ v }: { v: Cell }) {
   return <>{v}</>;
 }
 
-export function PlanMatrix() {
+export function PlanMatrix({ yearly = false, booking }: { yearly?: boolean; booking: string }) {
   return (
     <section className="plan-matrix" aria-labelledby="pm-title">
       <div className="section-head">
         <h2 id="pm-title">Compare plans</h2>
-        <p className="muted">Every plan includes the full dashboard. Higher plans add scale, client workflows and hands-on delivery.</p>
+        <p className="muted">Start free, upgrade to Pro for the full toolkit, or Agency to serve clients under your own brand.</p>
       </div>
       <div className="pm-pick" role="radiogroup" aria-label="Plan to show">
         {COLS.map((id) => (
           <label key={id}>
-            <input type="radio" name="pm-plan" value={id} defaultChecked={id === "growth"} />
+            <input type="radio" name="pm-plan" value={id} defaultChecked={id === "pro"} />
             <span>{PLANS[id].name}</span>
           </label>
         ))}
@@ -115,10 +118,16 @@ export function PlanMatrix() {
               {COLS.map((id) => (
                 <th key={id} scope="col" data-col={id} className={PLANS[id].highlight ? "hl" : ""}>
                   <span className="pm-name">{PLANS[id].name}</span>
-                  <span className="pm-price">
-                    {id === "dfy" ? "from " : ""}${PLANS[id].monthly}
-                    <small>/mo</small>
-                  </span>
+                  {id === "dfy" ? (
+                    <a className="pm-price pm-quote" href={booking} target={booking.startsWith("http") ? "_blank" : undefined} rel="noreferrer">
+                      Book a call
+                    </a>
+                  ) : (
+                    <span className="pm-price">
+                      ${yearly ? perMonthYearly(PLANS[id]) : PLANS[id].monthly}
+                      <small>/mo</small>
+                    </span>
+                  )}
                 </th>
               ))}
             </tr>

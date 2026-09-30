@@ -3,6 +3,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "../db";
 import { brands, reportSends } from "../db/schema";
+import { hasFeature } from "../plans";
 import { sendReportEmail } from "../email";
 import { monthlyReportData, periodBounds, previousPeriod } from "./data";
 import { MonthlyReportPdf } from "./pdf";
@@ -25,6 +26,7 @@ export async function sendMonthlyReport(brandId: string, period: string, recipie
     score: data.report.score,
     summary: data.summary,
     attachment: { filename, content: buffer },
+    sender: data.branding.whiteLabel ? data.branding.name : undefined,
   });
 }
 
@@ -32,6 +34,8 @@ export async function sendMonthlyReport(brandId: string, period: string, recipie
  * Called from the cron tick. On the first ticks of a month, emails last month's report to each brand's
  * recipients. A row in report_sends is claimed first, so overlapping ticks can never double-send.
  */
+const REPORT_PLANS = ["free", "pro", "agency", "dfy", "starter", "growth"].filter((p) => hasFeature(p, "reports"));
+
 export async function sendDueMonthlyReports(limit = 5): Promise<number> {
   const period = previousPeriod();
   const { start, end } = periodBounds(period);
@@ -41,6 +45,8 @@ export async function sendDueMonthlyReports(limit = 5): Promise<number> {
     .where(
       and(
         sql`jsonb_array_length(${brands.reportRecipients}) > 0`,
+        // Only plans that include reports (Free workspaces keep their recipient list but get no emails).
+        sql`EXISTS (SELECT 1 FROM organizations o WHERE o.id = ${brands.orgId} AND o.plan IN (${sql.join(REPORT_PLANS.map((p) => sql`${p}`), sql`, `)}))`,
         sql`NOT EXISTS (SELECT 1 FROM report_sends rs WHERE rs.brand_id = ${brands.id} AND rs.period = ${period})`,
         sql`EXISTS (SELECT 1 FROM runs r WHERE r.brand_id = ${brands.id} AND r.started_at >= ${start.toISOString()} AND r.started_at < ${end.toISOString()})`,
       ),

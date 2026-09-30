@@ -19,7 +19,8 @@ import {
   type MemberRole,
   type TaskStatus,
 } from "@/lib/db/schema";
-import { PLANS, type PlanId } from "@/lib/plans";
+import { seatsUsed, syncBrandsToPlan } from "@/lib/limits";
+import { hasFeature, PLANS, planFor, type PlanId } from "@/lib/plans";
 import type { FormState } from "./auth";
 
 async function editor(orgId: string) {
@@ -154,6 +155,13 @@ export async function addMember(orgId: string, _: FormState, form: FormData): Pr
   const parsed = MemberSchema.safeParse(Object.fromEntries(form));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const m = parsed.data;
+  const plan = planFor(org.plan);
+  if (m.role === "client" && !hasFeature(org.plan, "clientPortal")) {
+    return { error: `Client portal logins are included in Agency. Your ${plan.name} plan can add team members.` };
+  }
+  if (m.role !== "client" && plan.seats !== null && (await seatsUsed(orgId)) >= plan.seats) {
+    return { error: `Your ${plan.name} plan includes ${plan.seats} team seat${plan.seats === 1 ? "" : "s"}. Upgrade to add more people.` };
+  }
 
   let result;
   try {
@@ -236,10 +244,14 @@ export async function updateOrgPlan(orgId: string, form: FormData) {
   await requireStaff();
   const plan = String(form.get("plan"));
   if (!(plan in PLANS)) return;
+  const [before] = await db.select({ plan: organizations.plan }).from(organizations).where(eq(organizations.id, orgId));
   await db
     .update(organizations)
     .set({ plan, doneForYou: plan === "dfy" || form.get("doneForYou") === "on" })
     .where(eq(organizations.id, orgId));
+  const order = ["free", "pro", "agency", "dfy"];
+  const was = planFor(before?.plan ?? "free").id;
+  if (was !== plan) await syncBrandsToPlan(orgId, plan, order.indexOf(plan) > order.indexOf(was));
   revalidatePath("/admin");
 }
 
@@ -273,4 +285,28 @@ export async function applyDfyTemplate(orgId: string) {
     })),
   );
   revalidatePath(workPath(orgId));
+}
+
+// ---------------------------------------------------------------------------
+// White-label reports (Agency)
+// ---------------------------------------------------------------------------
+
+const MAX_LOGO = 300 * 1024;
+
+export async function updateWhiteLabel(orgId: string, _: FormState, form: FormData): Promise<FormState> {
+  const { role, org } = await editor(orgId);
+  if (role !== "owner") return { error: "Only workspace owners can change report branding" };
+  if (!hasFeature(org.plan, "whiteLabel")) return { error: "White-label reports are included in Agency." };
+  const name = String(form.get("reportName") ?? "").trim().slice(0, 80);
+  const patch: { reportName: string | null; reportLogo?: string | null } = { reportName: name || null };
+  if (form.get("removeLogo") === "on") patch.reportLogo = null;
+  const file = form.get("reportLogo");
+  if (file instanceof File && file.size > 0) {
+    if (!["image/png", "image/jpeg"].includes(file.type)) return { error: "Upload the logo as a PNG or JPEG" };
+    if (file.size > MAX_LOGO) return { error: "Keep the logo under 300 KB" };
+    patch.reportLogo = `data:${file.type};base64,${Buffer.from(await file.arrayBuffer()).toString("base64")}`;
+  }
+  await db.update(organizations).set(patch).where(eq(organizations.id, orgId));
+  revalidatePath(`/app/o/${orgId}/team`);
+  return { ok: name ? `Reports will now be prepared by ${name}.` : "Reports will use AEO GrowthLead branding." };
 }

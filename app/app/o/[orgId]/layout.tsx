@@ -5,7 +5,7 @@ import { Sidebar } from "@/app/components/sidebar";
 import { getOrgs, requireOrg, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { brands } from "@/lib/db/schema";
-import { planFor } from "@/lib/plans";
+import { hasFeature, planFor, type Feature } from "@/lib/plans";
 
 export default async function OrgLayout({ children, params }: { children: React.ReactNode; params: Promise<{ orgId: string }> }) {
   const { orgId } = await params;
@@ -23,7 +23,14 @@ export default async function OrgLayout({ children, params }: { children: React.
     <div className="dash">
       <Suspense>
         <Sidebar
-          org={{ id: org.id, name: org.name, planName: planFor(org.plan).name, doneForYou: org.doneForYou }}
+          org={{
+            id: org.id,
+            name: org.name,
+            planName: planFor(org.plan).name,
+            doneForYou: org.doneForYou,
+            free: planFor(org.plan).id === "free",
+            locked: (["sources", "competitors", "traffic", "reports"] as Feature[]).filter((f) => !hasFeature(org.plan, f)),
+          }}
           orgs={orgs}
           brands={brandRows}
           role={role}

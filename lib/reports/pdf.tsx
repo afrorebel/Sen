@@ -120,7 +120,7 @@ function Footer({ data }: { data: MonthlyReportData }) {
       <Text>
         {data.brand.name} · AI Visibility Report · {data.periodLabel}
       </Text>
-      <Text render={({ pageNumber, totalPages }) => `Prepared by AEO GrowthLead · ${pageNumber}/${totalPages}`} />
+      <Text render={({ pageNumber, totalPages }) => `Prepared by ${data.branding.name} · ${pageNumber}/${totalPages}`} />
     </View>
   );
 }
@@ -139,15 +139,22 @@ export function MonthlyReportPdf({ data }: { data: MonthlyReportData }) {
   const openRecs = report.recommendations.filter((r) => !r.state).slice(0, 5);
 
   return (
-    <Document title={`${data.brand.name} AI Visibility Report ${data.periodLabel}`} author="AEO GrowthLead">
+    <Document title={`${data.brand.name} AI Visibility Report ${data.periodLabel}`} author={data.branding.name}>
       {/* Cover + executive summary */}
       <Page size="A4" style={[s.page, s.cover]}>
         <View style={{ paddingHorizontal: 40, paddingTop: 40 }}>
           <View style={[s.row, { alignItems: "center", gap: 8 }]}>
-            <Logo />
+            {data.branding.logo ? (
+              // eslint-disable-next-line jsx-a11y/alt-text
+              <Image src={data.branding.logo} style={{ height: 28, maxWidth: 140, objectFit: "contain" }} />
+            ) : data.branding.whiteLabel ? null : (
+              <Logo />
+            )}
             <View>
-              <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 12 }}>AEO GrowthLead</Text>
-              <Text style={{ fontSize: 7, color: C.ink3, letterSpacing: 1.2 }}>AI VISIBILITY PLATFORM</Text>
+              <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 12 }}>{data.branding.name}</Text>
+              <Text style={{ fontSize: 7, color: C.ink3, letterSpacing: 1.2 }}>
+                {data.branding.whiteLabel ? "AI VISIBILITY REPORT" : "AI VISIBILITY PLATFORM"}
+              </Text>
             </View>
           </View>
           <View style={{ marginTop: 70 }}>

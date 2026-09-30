@@ -29,6 +29,7 @@ Until these are set, the app runs in **demo mode** with simulated answers, so yo
    - `CRON_SECRET`: a long random string, e.g. from a password generator
    - `DATAFORSEO_LOGIN`, `DATAFORSEO_PASSWORD`: from step 2
    - `ADMIN_EMAIL`: the email you'll sign up with
+   - `BOOKING_URL`: your Calendly/Cal.com link for "Book a call" (Done For You)
    - Email and Stripe settings: see steps 4 and 5 (they can be added later)
 4. Create the subdomain **app.aeogrowthlead.com** (hPanel → Domains → Subdomains), point it at this Node.js app and turn on SSL. Your marketing site stays on aeogrowthlead.com; link its "Log in" and "Start free" buttons to `https://app.aeogrowthlead.com/login` and `/signup`.
 5. Deploy. Visit `https://app.aeogrowthlead.com/signup` and create your account. The first account, and `ADMIN_EMAIL`, get **Admin** access.
@@ -51,12 +52,12 @@ Until SMTP is set, emails are written to the app's log instead of being sent.
    ```bash
    STRIPE_SECRET_KEY=sk_test_... npm run stripe:setup
    ```
-   This creates Starter, Growth and Agency (monthly and annual) and Done For You (monthly), priced as in `lib/plans.ts`.
+   This creates Pro ($79/month, $790/year) and Agency ($249/month, $2,490/year), priced as in `lib/plans.ts`, and a customer portal where subscribers can switch between them, update cards, see invoices and cancel. Done For You has no online price: its buttons go to your booking link (`BOOKING_URL`), and you assign the plan on the Admin page after the call.
 3. **Developers → Webhooks → Add endpoint**:
    - URL: `https://app.aeogrowthlead.com/api/stripe/webhook`
    - Events: `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`
    - Copy the **Signing secret** (`whsec_…`).
-4. **Settings → Billing → Customer portal**: turn on "Customers can switch plans". Add the Starter, Growth and Agency prices to it, and allow cancellations and invoice history.
+4. **Settings → Business → Public details**: add your business name, support email and your Terms and Privacy page links (Stripe shows them at checkout and requires them before going live).
 5. Add `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` to the Hostinger app and redeploy.
 6. Test: open **Billing** in the app, choose a plan, and pay with test card `4242 4242 4242 4242` (any future date, any CVC). You return to the Billing page and the plan changes within a few seconds.
 7. To go live: repeat steps 1–5 with live keys (`sk_live_…`) and a live webhook.

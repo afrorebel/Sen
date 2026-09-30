@@ -6,7 +6,7 @@ import { ActionForm, SubmitButton } from "@/app/components/forms";
 import { requireStaff } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { brands, organizations, runs, tasks } from "@/lib/db/schema";
-import { PLANS } from "@/lib/plans";
+import { PLANS, planFor } from "@/lib/plans";
 import { dataForSeoConfigured } from "@/lib/tracking/dataforseo";
 
 export const metadata = { title: "Admin · AEO GrowthLead" };
@@ -23,7 +23,13 @@ export default async function AdminPage() {
   const since = new Date(Date.now() - 30 * 86_400_000);
   const spend = await db.select({ cost: runs.cost }).from(runs).where(gt(runs.startedAt, since));
   const monthSpend = spend.reduce((n, r) => n + r.cost, 0);
-  const mrr = orgs.reduce((n, o) => n + (PLANS[o.plan as keyof typeof PLANS]?.monthly ?? 0), 0);
+  // Self-serve subscriptions only (Done For You is invoiced separately at quoted prices).
+  const mrr = Math.round(
+    orgs.reduce((n, o) => {
+      const p = planFor(o.plan);
+      return n + (o.billingInterval === "year" ? (p.yearly ?? 0) / 12 : (p.monthly ?? 0));
+    }, 0),
+  );
   const byOrg = <T extends { orgId: string; n: number }>(rows: T[], id: string) => rows.find((r) => r.orgId === id)?.n ?? 0;
 
   return (
@@ -94,10 +100,10 @@ export default async function AdminPage() {
                     <td className="num">{byOrg(openTasks, o.id)}</td>
                     <td>
                       <form action={updateOrgPlan.bind(null, o.id)} className="inline-form">
-                        <select name="plan" defaultValue={o.plan} aria-label="Plan">
+                        <select name="plan" defaultValue={planFor(o.plan).id} aria-label="Plan">
                           {Object.values(PLANS).map((p) => (
                             <option key={p.id} value={p.id}>
-                              {p.name} (${p.monthly})
+                              {p.name}
                             </option>
                           ))}
                         </select>
@@ -125,7 +131,8 @@ export default async function AdminPage() {
               <select name="plan" defaultValue="dfy" aria-label="Plan">
                 {Object.values(PLANS).map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} (${p.monthly}/mo)
+                    {p.name}
+                    {p.monthly ? ` ($${p.monthly}/mo)` : p.monthly === 0 ? "" : " (quoted)"}
                   </option>
                 ))}
               </select>
