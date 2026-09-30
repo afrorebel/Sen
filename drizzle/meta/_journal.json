@@ -22,6 +22,20 @@
       "when": 1790720925395,
       "tag": "0002_dashboard_and_reports",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790782877465,
+      "tag": "0003_tasks_competitors_traffic",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790784372731,
+      "tag": "0004_traffic_drain_token",
+      "breakpoints": true
     }
   ]
 }

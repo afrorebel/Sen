@@ -109,7 +109,17 @@ export const brands = pgTable(
     engines: jsonb("engines").$type<string[]>().notNull().default([]),
     frequency: text("frequency").$type<"weekly" | "daily">().notNull().default("weekly"),
     /** Recommendation id → "done" | "dismissed", so the task list remembers what was handled. */
-    recState: jsonb("rec_state").$type<Record<string, "done" | "dismissed">>().notNull().default({}),
+    recState: jsonb("rec_state").$type<Record<string, "done" | "dismissed" | "saved">>().notNull().default({}),
+    /** Recommendation id → indexes of completed steps. */
+    recSteps: jsonb("rec_steps").$type<Record<string, number[]>>().notNull().default({}),
+    /** Competitor names flagged as key competitors (tracked more closely, max 10). */
+    keyCompetitors: jsonb("key_competitors").$type<string[]>().notNull().default([]),
+    /** Brand names removed from rankings and share of voice (false positives). */
+    ignoredBrands: jsonb("ignored_brands").$type<string[]>().notNull().default([]),
+    /** Public key embedded in the AI traffic snippet on the client's website. */
+    trafficToken: text("traffic_token"),
+    /** Secret key for the server-log drain (kept separate from the public snippet key). */
+    trafficDrainToken: text("traffic_drain_token"),
     /** Who gets the monthly PDF report by email (empty = nobody). */
     reportRecipients: jsonb("report_recipients").$type<string[]>().notNull().default([]),
     nextRunAt: timestamp("next_run_at", { withTimezone: true }),
@@ -267,6 +277,24 @@ export const taskComments = pgTable("task_comments", {
   body: text("body").notNull(),
   createdAt: createdAt(),
 });
+
+/** Daily AI traffic rollups: crawler hits from server logs and AI-referred visits from the snippet. */
+export const aiTraffic = pgTable(
+  "ai_traffic",
+  {
+    brandId: uuid("brand_id")
+      .notNull()
+      .references(() => brands.id, { onDelete: "cascade" }),
+    day: text("day").notNull(), // YYYY-MM-DD (UTC)
+    kind: text("kind").$type<"crawler" | "referral">().notNull(),
+    /** Crawler name (GPTBot…) or referring assistant (ChatGPT…). */
+    agent: text("agent").notNull(),
+    path: text("path").notNull().default("/"),
+    hits: integer("hits").notNull().default(0),
+    errors: integer("errors").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.brandId, t.day, t.kind, t.agent, t.path] })],
+);
 
 /** One row per brand per month once the monthly report has been emailed, so cron never double-sends. */
 export const reportSends = pgTable(

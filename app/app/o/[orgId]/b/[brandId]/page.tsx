@@ -11,12 +11,16 @@ import { mockMode } from "@/lib/tracking/dataforseo";
 import { buildBrandReport } from "@/lib/tracking/report";
 import { CrawlerChecklist, FullReport, KpiRow, Panels, Recommendations, ReportHeader } from "./dashboard";
 import { Audit, Competitors, Prompts, Reports, Settings, Sources } from "./sections";
+import { Tasks } from "./tasks";
+import { Traffic } from "./traffic";
 
 const TITLES: Record<string, string> = {
   overview: "Dashboard",
   prompts: "Prompts",
   sources: "Sources",
   competitors: "Competitors",
+  traffic: "AI Traffic",
+  tasks: "Tasks",
   audit: "Site audit",
   reports: "Reports",
   settings: "Brand settings",
@@ -31,10 +35,11 @@ export default async function BrandPage({
   searchParams,
 }: {
   params: Promise<{ orgId: string; brandId: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; status?: string; q?: string; cat?: string; sort?: string; range?: string }>;
 }) {
   const { orgId, brandId } = await params;
-  const { tab: rawTab = "overview" } = await searchParams;
+  const sp = await searchParams;
+  const rawTab = sp.tab ?? "overview";
   const user = await requireUser();
   const { org, canEdit } = await requireOrg(user, orgId);
   const [owned] = await db
@@ -113,7 +118,9 @@ export default async function BrandPage({
         ))}
       {tab === "prompts" && <Prompts vis={report.vis} base={base} brandId={brandId} canEdit={canEdit} engines={brand.engines} />}
       {tab === "sources" && <Sources report={report} />}
-      {tab === "competitors" && <Competitors report={report} />}
+      {tab === "competitors" && <Competitors report={report} canEdit={canEdit} />}
+      {tab === "tasks" && <Tasks report={report} base={base} filters={sp} canEdit={canEdit} />}
+      {tab === "traffic" && <Traffic brand={brand} base={base} range={sp.range} canEdit={canEdit} />}
       {tab === "audit" && <Audit brandId={brandId} canEdit={canEdit} />}
       {tab === "reports" && <Reports brand={brand} base={base} canEdit={canEdit} />}
       {tab === "settings" && canEdit && <Settings brand={brand} planId={org.plan} />}

@@ -205,7 +205,7 @@ export async function deleteBrand(brandId: string) {
   redirect(`/app/o/${brand.orgId}`);
 }
 
-export async function setRecommendationState(brandId: string, recId: string, state: "done" | "dismissed" | null) {
+export async function setRecommendationState(brandId: string, recId: string, state: "done" | "dismissed" | "saved" | null) {
   const { brand } = await editableBrand(brandId);
   const next = { ...(brand.recState ?? {}) };
   if (state) next[recId] = state;
@@ -244,4 +244,83 @@ export async function updateReportRecipients(brandId: string, _: FormState, form
   await db.update(brands).set({ reportRecipients: [...new Set(emails)].slice(0, 10) }).where(eq(brands.id, brandId));
   revalidatePath(`/app/o/${brand.orgId}/b/${brandId}`);
   return { ok: emails.length ? `Monthly reports will go to ${emails.length} recipient(s) on the 1st of each month.` : "Monthly emails turned off." };
+}
+
+/** Ticks or unticks one step of a recommendation. */
+export async function toggleRecStep(brandId: string, recId: string, step: number) {
+  const { brand } = await editableBrand(brandId);
+  const all = { ...(brand.recSteps ?? {}) };
+  const set = new Set(all[recId] ?? []);
+  if (set.has(step)) set.delete(step);
+  else set.add(step);
+  all[recId] = [...set].sort((a, b) => a - b);
+  await db.update(brands).set({ recSteps: all }).where(eq(brands.id, brandId));
+  revalidatePath(`/app/o/${brand.orgId}/b/${brandId}`);
+}
+
+// ---------------------------------------------------------------------------
+// Competitor management
+// ---------------------------------------------------------------------------
+
+const MAX_KEY = 10;
+const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+async function saveCompetitors(brand: typeof brands.$inferSelect, patch: Partial<typeof brands.$inferInsert>) {
+  await db.update(brands).set(patch).where(eq(brands.id, brand.id));
+  revalidatePath(`/app/o/${brand.orgId}/b/${brand.id}`);
+}
+
+export async function addCompetitor(brandId: string, _: FormState, form: FormData): Promise<FormState> {
+  const { brand } = await editableBrand(brandId);
+  const name = String(form.get("name") ?? "").trim().slice(0, 80);
+  const domainRaw = String(form.get("domain") ?? "").trim();
+  const key = form.get("key") === "on";
+  if (name.length < 2) return { error: "Enter the competitor's name" };
+  if (brand.competitors.some((c) => same(c.name, name))) return { error: `${name} is already tracked` };
+  if (brand.competitors.length >= 30) return { error: "You can track up to 30 competitors per brand" };
+  if (key && brand.keyCompetitors.length >= MAX_KEY) return { error: `You can mark up to ${MAX_KEY} key competitors` };
+  await saveCompetitors(brand, {
+    competitors: [...brand.competitors, domainRaw ? { name, domain: normalizeDomain(domainRaw) } : { name }],
+    keyCompetitors: key ? [...brand.keyCompetitors, name] : brand.keyCompetitors,
+    ignoredBrands: brand.ignoredBrands.filter((n) => !same(n, name)),
+  });
+  return { ok: `Now tracking ${name}` };
+}
+
+/** Starts tracking a brand the AI engines recommended (from the suggestions list). */
+export async function trackSuggested(brandId: string, name: string) {
+  const { brand } = await editableBrand(brandId);
+  if (brand.competitors.some((c) => same(c.name, name))) return;
+  await saveCompetitors(brand, { competitors: [...brand.competitors, { name: name.slice(0, 80) }] });
+}
+
+export async function setKeyCompetitor(brandId: string, name: string, key: boolean) {
+  const { brand } = await editableBrand(brandId);
+  const others = brand.keyCompetitors.filter((n) => !same(n, name));
+  if (key && others.length >= MAX_KEY) return;
+  await saveCompetitors(brand, { keyCompetitors: key ? [...others, name] : others });
+}
+
+export async function removeCompetitor(brandId: string, name: string) {
+  const { brand } = await editableBrand(brandId);
+  await saveCompetitors(brand, {
+    competitors: brand.competitors.filter((c) => !same(c.name, name)),
+    keyCompetitors: brand.keyCompetitors.filter((n) => !same(n, name)),
+  });
+}
+
+/** Removes a brand from rankings and share of voice (e.g. a directory or a false match). */
+export async function ignoreBrand(brandId: string, name: string) {
+  const { brand } = await editableBrand(brandId);
+  if (same(name, brand.name)) return;
+  await saveCompetitors(brand, {
+    competitors: brand.competitors.filter((c) => !same(c.name, name)),
+    keyCompetitors: brand.keyCompetitors.filter((n) => !same(n, name)),
+    ignoredBrands: [...brand.ignoredBrands.filter((n) => !same(n, name)), name].slice(-100),
+  });
+}
+
+export async function unignoreBrand(brandId: string, name: string) {
+  const { brand } = await editableBrand(brandId);
+  await saveCompetitors(brand, { ignoredBrands: brand.ignoredBrands.filter((n) => !same(n, name)) });
 }

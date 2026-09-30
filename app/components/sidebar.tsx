@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 export interface SidebarProps {
   org: { id: string; name: string; planName: string; doneForYou: boolean };
@@ -25,6 +25,7 @@ const I = {
   tasks: "M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2",
   team: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8",
   billing: "M1 4h22v16H1zM1 10h22",
+  traffic: "M3 17l6-6 4 4 8-8M14 7h7v7",
 };
 
 function Icon({ d }: { d: string }) {
@@ -63,9 +64,12 @@ export function Sidebar({ org, orgs, brands, role, user, logout }: SidebarProps)
   const inBrand = Boolean(params.brandId) && !pathname.includes("/checks/");
   const brandBase = brand ? `${base}/b/${brand.id}` : null;
   const isTab = (t: string) => inBrand && pathname === brandBase && tab === t;
+  // Mobile: the nav is collapsed behind a Menu button and closes after navigating.
+  const [open, setOpen] = useState(false);
+  useEffect(() => setOpen(false), [pathname, tab]);
 
   return (
-    <aside className="sidebar no-print">
+    <aside className={`sidebar no-print ${open ? "open" : ""}`}>
       <div className="side-top">
         <Link href="/app" className="side-logo" aria-label="All workspaces">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -90,6 +94,9 @@ export function Sidebar({ org, orgs, brands, role, user, logout }: SidebarProps)
             </Link>
           </div>
         </details>
+        <button type="button" className="side-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+          {open ? "Close" : "Menu"}
+        </button>
       </div>
 
       {brand && brandBase && (
@@ -116,6 +123,8 @@ export function Sidebar({ org, orgs, brands, role, user, logout }: SidebarProps)
             <Item href={`${brandBase}?tab=prompts`} icon={I.prompts} label="Prompts" active={isTab("prompts") || pathname.includes("/checks/")} />
             <Item href={`${brandBase}?tab=sources`} icon={I.sources} label="Sources" active={isTab("sources")} />
             <Item href={`${brandBase}?tab=competitors`} icon={I.competitors} label="Competitors" active={isTab("competitors")} />
+            <Item href={`${brandBase}?tab=traffic`} icon={I.traffic} label="AI Traffic" active={isTab("traffic")} />
+            <Item href={`${brandBase}?tab=tasks`} icon={I.tasks} label="Tasks" active={isTab("tasks")} />
             <Item href={`${brandBase}?tab=audit`} icon={I.audit} label="Site audit" active={isTab("audit")} />
             <Item href={`${brandBase}?tab=reports`} icon={I.reports} label="Reports" active={isTab("reports")} />
             {role !== "client" && <Item href={`${brandBase}?tab=settings`} icon={I.settings} label="Brand settings" active={isTab("settings")} />}

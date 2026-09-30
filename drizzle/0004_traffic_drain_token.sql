@@ -1,0 +1,1 @@
+ALTER TABLE "brands" ADD COLUMN "traffic_drain_token" text;

@@ -179,14 +179,30 @@ export default function Home() {
               </p>
               <ul className="ticks">
                 <li>Priority score, impact and effort for every action</li>
-                <li>Step-by-step instructions</li>
-                <li>One click to your team&apos;s task board</li>
+                <li>Step-by-step checklists you can tick off</li>
+                <li>Save, dismiss or push to your team&apos;s task board</li>
               </ul>
             </div>
-            <Shot src="/screens/recommendations.png" alt="Prioritised recommendations with impact, effort and evidence" />
+            <Shot src="/screens/recommendations.png" alt="Tasks page with top opportunities ranked by impact, effort and evidence" />
           </div>
 
           <div className="feature-row reverse">
+            <div>
+              <h3>See AI crawlers and AI visitors on your site</h3>
+              <p>
+                Upload a server log or connect a log drain to see which AI crawlers read your pages and which ones hit errors. Add
+                one line of script to count the visitors ChatGPT, Perplexity, Gemini and Claude send you.
+              </p>
+              <ul className="ticks">
+                <li>GPTBot, ClaudeBot, PerplexityBot and 20+ other crawlers</li>
+                <li>AI-referred visits and landing pages</li>
+                <li>No cookies and no personal data</li>
+              </ul>
+            </div>
+            <Shot src="/screens/traffic.png" alt="AI Traffic page with crawler hits, AI-referred visits and a daily activity chart" />
+          </div>
+
+          <div className="feature-row">
             <div>
               <h3>A client-ready PDF on the 1st of every month</h3>
               <p>

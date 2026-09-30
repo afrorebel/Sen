@@ -294,7 +294,7 @@ function RecCard({ rec, brandId, canEdit }: { rec: Recommendation; brandId: stri
       </details>
       {canEdit && (
         <div className="rec-actions">
-          {rec.state ? (
+          {rec.state === "done" || rec.state === "dismissed" ? (
             <form action={setRecommendationState.bind(null, brandId, rec.id, null)}>
               <SubmitButton className="btn ghost small">{rec.state === "done" ? "✓ Completed · undo" : "Dismissed · undo"}</SubmitButton>
             </form>
@@ -324,12 +324,16 @@ export function Recommendations({ report, canEdit }: { report: BrandReport; canE
   const recs = report.recommendations;
   if (!recs.length) return null;
   const done = recs.filter((r) => r.state === "done").length;
+  const open = recs.filter((r) => r.state !== "done" && r.state !== "dismissed");
   return (
     <section className="stack">
       <div className="row-between">
         <div>
           <h2 className="section-title">Recommendations</h2>
-          <p className="muted">Prioritised actions, each backed by evidence from your latest data.</p>
+          <p className="muted">
+            Prioritised actions, each backed by evidence from your latest data.{" "}
+            <Link href={`?tab=tasks`}>Open all tasks →</Link>
+          </p>
         </div>
         <span className="card completed-pill">
           <b>
@@ -339,7 +343,7 @@ export function Recommendations({ report, canEdit }: { report: BrandReport; canE
         </span>
       </div>
       <div className="carousel">
-        {recs.map((r) => (
+        {open.slice(0, 8).map((r) => (
           <RecCard key={r.id} rec={r} brandId={report.brand.id} canEdit={canEdit} />
         ))}
       </div>

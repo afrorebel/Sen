@@ -22,6 +22,20 @@ export async function SiteHeader({ announce = true }: { announce?: boolean }) {
             <Link href="/audit">Free audit</Link>
           </nav>
           <div className="site-cta">
+            <details className="mnav">
+              <summary aria-label="Open menu">
+                <span />
+                <span />
+                <span />
+              </summary>
+              <div className="mnav-panel">
+                <Link href="/#features">Features</Link>
+                <Link href="/#how">How it works</Link>
+                <Link href="/pricing">Pricing</Link>
+                <Link href="/audit">Free audit</Link>
+                {user ? <Link href="/app">Open dashboard</Link> : <Link href="/login">Log in</Link>}
+              </div>
+            </details>
             {user ? (
               <Link href="/app" className="btn small">
                 Open dashboard

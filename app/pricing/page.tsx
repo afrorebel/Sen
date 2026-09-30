@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PlanMatrix } from "@/app/components/plan-matrix";
 import { PriceCompare } from "@/app/components/price-compare";
 import { SiteFooter, SiteHeader } from "@/app/components/site-header";
 import { PLANS } from "@/lib/plans";
@@ -7,7 +8,6 @@ export const metadata = {
   title: "Pricing · AEO GrowthLead",
   description: "Affordable AI visibility tracking for ChatGPT, Google AI Mode, Perplexity, Gemini and Claude, plus done-for-you AEO.",
 };
-
 
 export default function PricingPage() {
   const selfServe = [PLANS.free, PLANS.starter, PLANS.growth, PLANS.agency];
@@ -73,10 +73,11 @@ export default function PricingPage() {
           </div>
         </section>
 
+        <PlanMatrix />
+
         <PriceCompare />
       </main>
       <SiteFooter />
-
     </>
   );
 }

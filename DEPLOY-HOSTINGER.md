@@ -77,6 +77,13 @@ Each call starts any brands that are due for their weekly or daily check. It the
 - Add a brand, then open **Prompts**: results fill in as checks finish.
 - The **Admin** page shows DataForSEO spend for the last 30 days.
 
+## 8. AI Traffic for a client (optional, per brand)
+
+Open the brand's **AI Traffic** page.
+
+- **AI-referred visitors:** click **Get tracking snippet** and paste the line into the client's site before `</head>` (WordPress: a header-scripts plugin or the theme's header). It counts visits whose referrer or `utm_source` is an AI assistant, and sets no cookies.
+- **AI crawler logs:** either upload an access log (hPanel → **Websites → Logs → Access logs**, or your host's download), or, on hosts with log drains (Vercel, Cloudflare Logpush, Netlify), point the drain at the private URL shown on the page. Keep that URL secret; **Rotate both keys** if it leaks.
+
 ## Updating
 
 Push to GitHub and redeploy from hPanel, or re-upload. Migrations run automatically on start.

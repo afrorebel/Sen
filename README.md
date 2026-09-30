@@ -8,11 +8,14 @@ Businesses see whether ChatGPT, Google AI Mode, Perplexity, Gemini and Claude na
 
 | Area | What it does |
 |---|---|
-| **Product site** (`/`, `/pricing`) | Marketing homepage and pricing in the aeogrowthlead.com brand, with real dashboard screenshots (`public/screens/`) and a price-comparison section (`app/components/price-compare.tsx`; keep competitor prices current). |
+| **Product site** (`/`, `/pricing`) | Marketing homepage and pricing in the aeogrowthlead.com brand, with real dashboard screenshots (`public/screens/`), a plan comparison matrix (`app/components/plan-matrix.tsx`, generated from `lib/plans.ts`) and a price-comparison section (`app/components/price-compare.tsx`; keep competitor prices current). Fully responsive, with a mobile menu. |
 | **Free AEO audit** (`/audit`) | Public lead magnet. Scores any URL on AI crawler access, structured data, answer-ready content, trust and technical signals, then links to sign-up. |
 | **Brands & prompts** | Each brand has a domain, category, location, competitors and the buyer prompts to track. A prompt suggester builds lists from the playbook's four buckets (best/top, problem, comparison, local). |
 | **AI visibility tracking** | Weekly or daily checks of every prompt × engine through DataForSEO. Records whether the brand was named, its rank among the brands named, and whether its site was cited. |
-| **Dashboard** | Sidebar app shell with workspace and brand switchers. The brand dashboard shows the AEO score ring, KPI cards with month-on-month deltas, AI presence per engine, key prompts, competitor landscape, strategy review, a carousel of prioritised recommendations (complete, dismiss or send to the task board), a full prompt-by-prompt report with every engine's answer, cited sources and query fan-outs, and an AI crawler checklist with semantic-HTML stats. Tabs cover Prompts, Sources, Competitors, Site audit, Reports and Brand settings. |
+| **Dashboard** | Sidebar app shell with workspace and brand switchers. The brand dashboard shows the AEO score ring, KPI cards with month-on-month deltas, AI presence per engine, key prompts, competitor landscape, strategy review, a carousel of prioritised recommendations (complete, dismiss or send to the task board), a full prompt-by-prompt report with every engine's answer, cited sources and query fan-outs, and an AI crawler checklist with semantic-HTML stats. Tabs cover Prompts, Sources, Competitors, AI Traffic, Tasks, Site audit, Reports and Brand settings. The sidebar and the page scroll independently. |
+| **Tasks** | Every recommendation as a task: Active / Saved / Completed / Dismissed tabs, search, category filter (Technical, Content, Citations, Reference, Visibility), sort by opportunity, impact or effort, top-3 opportunities, per-step checklists and overall progress. |
+| **Competitor management** | Next best actions (brands AI recommends that you don't track yet: track or ignore), up to 10 key competitors, up to 30 tracked competitors, and an ignored list that removes false positives from every ranking and share-of-voice figure. |
+| **AI Traffic** | AI crawler hits and errors from server logs (file upload, or a log drain to `/api/traffic/logs` with a secret key) for GPTBot, ClaudeBot, PerplexityBot and 20+ other bots, plus AI-referred visits (ChatGPT, Perplexity, Gemini, Claude, Copilot…) from a one-line snippet (`/t.js`). Daily rollups only: no IPs, user agents of people, cookies or query strings are stored. 7-day, 1-month and 3-month views. |
 | **Monthly PDF reports** | A branded, multi-page PDF (score, KPIs vs last month, engines, share of voice, sources, prompt grid, site readiness, work delivered, next month's priorities). Download any month, email it on demand, or add recipients so it goes out automatically on the 1st of each month (sent once per brand per month). |
 | **Cited sources** | The domains and pages AI engines cite for your prompts: the Reddit threads, listicles and directories to target. |
 | **Site audit** | The AEO audit saved per brand, so it can be re-run over time. |
@@ -81,10 +84,12 @@ app/
   admin/                                 staff admin
   actions/                               server actions (auth, brands, work/admin)
   api/cron, api/audit                    cron runner, audit API
+  api/traffic/logs, api/traffic/collect  AI crawler log drain and AI-referral beacon (public/t.js)
 lib/
   db/schema.ts                           Drizzle schema (Postgres); migrations in drizzle/
   auth.ts                                sessions, passwords, org access rules
   plans.ts, locations.ts                 plan limits, markets, prompt suggestions
+  traffic.ts                             AI crawler/referrer detection, log parsing, traffic rollups
   tracking/                              DataForSEO client, answer analysis, runner, metrics
   audit/                                 AEO site audit engine
 ```

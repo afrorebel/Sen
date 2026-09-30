@@ -1,6 +1,18 @@
 import { desc, eq } from "drizzle-orm";
 import Link from "next/link";
-import { addPrompts, removePrompt, runBrandAudit, updateBrand, updateReportRecipients } from "@/app/actions/brands";
+import {
+  addCompetitor,
+  addPrompts,
+  ignoreBrand,
+  removeCompetitor,
+  removePrompt,
+  runBrandAudit,
+  setKeyCompetitor,
+  trackSuggested,
+  unignoreBrand,
+  updateBrand,
+  updateReportRecipients,
+} from "@/app/actions/brands";
 import { ActionForm, SubmitButton } from "@/app/components/forms";
 import { EngineIcon, Favicon } from "@/app/components/logo";
 import { Empty, Pill, ShareBars, pct } from "@/app/components/ui";
@@ -53,7 +65,7 @@ export function Prompts({
           <p className="muted">No prompts yet. Add the questions your buyers ask below.</p>
         ) : (
           <div className="table-wrap">
-            <table>
+            <table className="prompt-table">
               <thead>
                 <tr>
                   <th>Prompt</th>
@@ -66,19 +78,19 @@ export function Prompts({
               <tbody>
                 {vis.prompts.map((p) => (
                   <tr key={p.id}>
-                    <td>
+                    <td className="pt-text">
                       {p.text}
                       <div className="muted small">{p.intent}</div>
                     </td>
                     {cols.map((e) => (
-                      <td key={e}>
+                      <td key={e} className="pt-res" data-label={ENGINES[e].label}>
                         <ResultCell r={p.results[e]} href={p.results[e] ? `${base}/checks/${p.results[e]!.id}` : "#"} />
                       </td>
                     ))}
                     {canEdit && (
-                      <td>
+                      <td className="pt-rm">
                         <form action={removePrompt.bind(null, p.id)}>
-                          <button className="linklike muted small" title="Stop tracking this prompt">
+                          <button className="linklike muted small nowrap" title="Stop tracking this prompt">
                             Remove
                           </button>
                         </form>
@@ -168,7 +180,7 @@ export function Sources({ report }: { report: BrandReport }) {
           Getting mentioned on these (threads, listicles, directories) is the fastest way into the answers.
         </p>
         <div className="table-wrap">
-          <table>
+          <table className="stack-table">
             <thead>
               <tr>
                 <th>Domain</th>
@@ -186,9 +198,9 @@ export function Sources({ report }: { report: BrandReport }) {
                     </span>{" "}
                     {s.domain.endsWith(brand.domain) && <Pill tone="good">you</Pill>}
                   </td>
-                  <td className="muted">{sourceType(s.domain, brand.domain)}</td>
-                  <td className="num">{s.citations}</td>
-                  <td>
+                  <td className="muted" data-label="Type">{sourceType(s.domain, brand.domain)}</td>
+                  <td className="num" data-label="Answers">{s.citations}</td>
+                  <td className="st-wide" data-label="Example">
                     <a href={s.sample} target="_blank" rel="noreferrer nofollow">
                       {s.title || s.sample}
                     </a>
@@ -203,15 +215,77 @@ export function Sources({ report }: { report: BrandReport }) {
   );
 }
 
-export function Competitors({ report }: { report: BrandReport }) {
-  const { vis } = report;
-  if (!vis.competitors.length) {
+function CompetitorCard({
+  brandId,
+  name,
+  domain,
+  mentions,
+  share,
+  isKey,
+  canEdit,
+}: {
+  brandId: string;
+  name: string;
+  domain?: string;
+  mentions: number;
+  share: number;
+  isKey: boolean;
+  canEdit: boolean;
+}) {
+  return (
+    <div className={`comp-card ${isKey ? "key" : ""}`}>
+      <div className="comp-name">
+        {domain ? <Favicon domain={domain} /> : <span className="comp-dot" aria-hidden />}
+        <b title={name}>{name}</b>
+      </div>
+      <div className="comp-meta">
+        {isKey && <span className="key-pill">Key competitor</span>}
+        <span className="muted small">
+          {mentions} mention{mentions === 1 ? "" : "s"} · {pct(share)}
+        </span>
+      </div>
+      {canEdit && (
+        <div className="comp-actions">
+          <form action={setKeyCompetitor.bind(null, brandId, name, !isKey)}>
+            <button className="linklike small">{isKey ? "Unmark key" : "Mark as key"}</button>
+          </form>
+          <form action={ignoreBrand.bind(null, brandId, name)}>
+            <button className="linklike small muted">Ignore</button>
+          </form>
+          <form action={removeCompetitor.bind(null, brandId, name)}>
+            <button className="linklike small muted">Remove</button>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function Competitors({ report, canEdit }: { report: BrandReport; canEdit: boolean }) {
+  const { vis, brand } = report;
+  const lower = (s: string) => s.toLowerCase();
+  const tracked = new Set(brand.competitors.map((c) => lower(c.name)));
+  const keys = new Set(brand.keyCompetitors.map(lower));
+  const stats = new Map(vis.competitors.map((c) => [lower(c.name), c]));
+  const suggestions = vis.competitors.filter((c) => !c.isOwn && !tracked.has(lower(c.name))).slice(0, 5);
+  const keyList = brand.competitors.filter((c) => keys.has(lower(c.name)));
+  const otherList = brand.competitors.filter((c) => !keys.has(lower(c.name)));
+  const card = (c: { name: string; domain?: string }, isKey: boolean) => {
+    const st = stats.get(lower(c.name));
     return (
-      <Empty title="No competitors named yet">
-        <p className="muted">When AI answers name other companies for your prompts, they appear here.</p>
-      </Empty>
+      <CompetitorCard
+        key={c.name}
+        brandId={brand.id}
+        name={c.name}
+        domain={c.domain}
+        mentions={st?.mentions ?? 0}
+        share={st?.share ?? 0}
+        isKey={isKey}
+        canEdit={canEdit}
+      />
     );
-  }
+  };
+
   const rows = vis.competitors.map((c) => {
     const checks = vis.prompts.flatMap((p) => p.checks.filter((x) => x.brandsFound?.some((b) => b.name === c.name)));
     const engines = ENGINE_IDS.filter((e) => checks.some((x) => x.engine === e));
@@ -224,50 +298,151 @@ export function Competitors({ report }: { report: BrandReport }) {
     const avg = positions.length ? positions.reduce((a, b) => a + b, 0) / positions.length : null;
     return { ...c, engines, wins, avg };
   });
+
   return (
     <>
+      <div>
+        <h1>Competitors</h1>
+        <p className="muted">Shape the competitor set used for share of voice, prompt mentions and source analysis.</p>
+      </div>
+
+      {canEdit && suggestions.length > 0 && (
+        <section className="card nba">
+          <div className="row-between">
+            <h2>Next best actions</h2>
+            <span className="pill-sm">{suggestions.length} to review</span>
+          </div>
+          {suggestions.map((sug) => (
+            <div key={sug.name} className="nba-row">
+              <div className="nba-text">
+                <b>{sug.name}</b>
+                <span className="muted small">
+                  Recommended {sug.mentions} time{sug.mentions === 1 ? "" : "s"} by AI engines ({pct(sug.share)} share of voice) but not tracked.
+                </span>
+              </div>
+              <div className="nba-actions">
+                <form action={ignoreBrand.bind(null, brand.id, sug.name)}>
+                  <button className="btn ghost small">Ignore</button>
+                </form>
+                <form action={trackSuggested.bind(null, brand.id, sug.name)}>
+                  <button className="btn small dark">Track</button>
+                </form>
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+
       <section className="card">
-        <h2>Share of voice</h2>
-        <p className="muted small">Each brand&apos;s share of all brand mentions in the latest check.</p>
-        <ShareBars rows={vis.competitors} />
-      </section>
-      <section className="card">
-        <h2>Who AI recommends</h2>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Brand</th>
-                <th>Mentions</th>
-                <th>Share</th>
-                <th>Avg rank</th>
-                <th>Engines</th>
-                <th>Prompts they win and you don&apos;t</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.name} className={r.isOwn ? "own-row" : ""}>
-                  <td>
-                    <b>{r.name}</b> {r.isOwn && <span className="you">you</span>}
-                  </td>
-                  <td className="num">{r.mentions}</td>
-                  <td className="num">{pct(r.share)}</td>
-                  <td className="num">{r.avg ? `#${r.avg.toFixed(1)}` : "—"}</td>
-                  <td>
-                    <span className="icons">
-                      {r.engines.filter(isEngine).map((e) => (
-                        <EngineIcon key={e} engine={e} size={18} title={ENGINES[e].label} />
-                      ))}
-                    </span>
-                  </td>
-                  <td className="num">{r.isOwn ? "—" : r.wins}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="row-between">
+          <h2>
+            Key competitors <span className="muted">· {keyList.length}</span>
+          </h2>
+          <span className="muted small">Tracked most closely (up to 10)</span>
+        </div>
+        <div className="comp-grid">
+          {keyList.map((c) => card(c, true))}
+          {!keyList.length && <p className="muted small">Mark your biggest rivals as key competitors to follow them closely.</p>}
         </div>
       </section>
+
+      <section className="card">
+        <div className="row-between">
+          <h2>
+            Competitors <span className="muted">· {otherList.length}</span>
+          </h2>
+          <span className="muted small">Other brands in your market</span>
+        </div>
+        <div className="comp-grid">
+          {otherList.map((c) => card(c, false))}
+          {canEdit && (
+            <ActionForm action={addCompetitor.bind(null, brand.id)} className="comp-add" resetOnSuccess>
+              <b>Add competitor</b>
+              <input name="name" placeholder="Brand name" required />
+              <input name="domain" placeholder="Website (optional)" />
+              <label className="check-label small">
+                <input type="checkbox" name="key" /> Key competitor
+              </label>
+              <SubmitButton className="btn small">Add</SubmitButton>
+            </ActionForm>
+          )}
+        </div>
+      </section>
+
+      <section className="card">
+        <div className="row-between">
+          <h2>
+            Ignored <span className="muted">· {brand.ignoredBrands.length}</span>
+          </h2>
+          <span className="muted small">Removed from tracking and all rankings</span>
+        </div>
+        {brand.ignoredBrands.length ? (
+          <div className="chips">
+            {brand.ignoredBrands.map((n) => (
+              <span key={n} className="ignored-chip">
+                {n}
+                {canEdit && (
+                  <form action={unignoreBrand.bind(null, brand.id, n)}>
+                    <button className="linklike small" aria-label={`Restore ${n}`}>
+                      Restore
+                    </button>
+                  </form>
+                )}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="muted small">Park false positives here (directories, generic terms) so rankings stay clean.</p>
+        )}
+      </section>
+
+      {vis.competitors.length > 0 && (
+        <>
+          <section className="card">
+            <h2>Share of voice</h2>
+            <p className="muted small">Each brand&apos;s share of all brand mentions in the latest check.</p>
+            <ShareBars rows={vis.competitors} />
+          </section>
+          <section className="card">
+            <h2>Who AI recommends</h2>
+            <div className="table-wrap">
+              <table className="stack-table">
+                <thead>
+                  <tr>
+                    <th>Brand</th>
+                    <th>Mentions</th>
+                    <th>Share</th>
+                    <th>Avg rank</th>
+                    <th>Engines</th>
+                    <th>Prompts they win</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.name} className={r.isOwn ? "own-row" : ""}>
+                      <td>
+                        <b>{r.name}</b> {r.isOwn && <span className="you">you</span>}
+                        {keys.has(lower(r.name)) && <span className="key-pill">Key</span>}
+                      </td>
+                      <td className="num" data-label="Mentions">{r.mentions}</td>
+                      <td className="num" data-label="Share">{pct(r.share)}</td>
+                      <td className="num" data-label="Avg rank">{r.avg ? `#${r.avg.toFixed(1)}` : "—"}</td>
+                      <td data-label="Engines">
+                        <span className="icons">
+                          {r.engines.filter(isEngine).map((e) => (
+                            <EngineIcon key={e} engine={e} size={16} title={ENGINES[e].label} />
+                          ))}
+                        </span>
+                      </td>
+                      <td className="num" data-label="Prompts won">{r.isOwn ? "—" : r.wins}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </>
+      )}
     </>
   );
 }
@@ -329,7 +504,7 @@ export async function Reports({ brand, base, canEdit }: { brand: typeof brands.$
                       </td>
                       <td className="muted small">{sent ? `${sent.sentAt.toLocaleDateString()} to ${sent.recipients.length}` : "—"}</td>
                       <td>
-                        <a href={pdf(p)}>Download PDF</a>
+                        <a className="nowrap" href={pdf(p)}>Download PDF</a>
                       </td>
                     </tr>
                   );

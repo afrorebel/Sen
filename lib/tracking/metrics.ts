@@ -1,7 +1,7 @@
 import "server-only";
 import { and, desc, eq, inArray, lt } from "drizzle-orm";
 import { db } from "../db";
-import { checks, prompts, runs, type Check, type Run } from "../db/schema";
+import { brands, checks, prompts, runs, type Check, type Run } from "../db/schema";
 import { ENGINES, isEngine, type EngineId } from "./engines";
 
 export interface RunSummary {
@@ -82,7 +82,14 @@ export async function brandVisibility(brandId: string, trendRuns = 12, before?: 
     };
   }
 
-  const checkRows = await db.select().from(checks).where(inArray(checks.runId, recent.map((r) => r.id)));
+  const [brandRow] = await db.select({ ignored: brands.ignoredBrands }).from(brands).where(eq(brands.id, brandId));
+  const ignored = new Set((brandRow?.ignored ?? []).map((n) => n.toLowerCase()));
+  // Drop ignored brands (false positives) and re-rank what's left, so rankings stay clean.
+  const checkRows = (await db.select().from(checks).where(inArray(checks.runId, recent.map((r) => r.id)))).map((c) => {
+    if (!ignored.size || !c.brandsFound) return c;
+    const kept = c.brandsFound.filter((b) => !ignored.has(b.name.toLowerCase())).map((b, i) => ({ ...b, position: i + 1 }));
+    return { ...c, brandsFound: kept, position: kept.find((b) => b.isOwn)?.position ?? c.position };
+  });
   const byRun = new Map<string, Check[]>();
   for (const c of checkRows) byRun.set(c.runId, [...(byRun.get(c.runId) ?? []), c]);
 

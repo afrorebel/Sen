@@ -20,7 +20,12 @@ export interface Recommendation {
   priority: number;
   evidence: string[];
   steps: string[];
-  state?: "done" | "dismissed";
+  /** Technical | Content | Citations | Reference | Visibility — the table's category badge. */
+  category: string;
+  /** Short task type, e.g. "Add structured data" or "Channel creation". */
+  type: string;
+  state?: "done" | "dismissed" | "saved";
+  stepsDone: number[];
 }
 
 export interface EnginePresence {
@@ -76,7 +81,7 @@ function categoryScore(audit: AuditReport | null, id: CategoryId): number | null
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 
 function recommendationsFor(brand: Brand, vis: BrandVisibility, audit: AuditReport | null, presence: EnginePresence[]): Recommendation[] {
-  const recs: Recommendation[] = [];
+  const recs: Omit<Recommendation, "stepsDone" | "state">[] = [];
   const own = brand.domain;
 
   // 1. Engines where the brand never appears.
@@ -91,6 +96,8 @@ function recommendationsFor(brand: Brand, vis: BrandVisibility, audit: AuditRepo
       impact: rate === 0 ? "high" : "medium",
       effort: "medium",
       tag: `${e.label} visibility`,
+      category: "Visibility",
+      type: "Engine coverage",
       priority: Math.round(95 - rate * 60),
       evidence: [`Engine: ${e.label}`, `${e.prompts} prompts checked`, `${e.cited} citations of your site`],
       steps: [
@@ -114,6 +121,8 @@ function recommendationsFor(brand: Brand, vis: BrandVisibility, audit: AuditRepo
       impact: "high",
       effort: "medium",
       tag: p.intent === "local" ? "Local answer" : p.intent === "comparison" ? "Comparison" : "Answer coverage",
+      category: "Content",
+      type: "Answer page",
       priority: 90,
       evidence: [`${p.checks.length} engines checked`, ...(rivals[0] ? [`Top rival: ${rivals[0]}`] : [])],
       steps: [
@@ -134,6 +143,8 @@ function recommendationsFor(brand: Brand, vis: BrandVisibility, audit: AuditRepo
       impact: s.citations >= 3 ? "high" : "medium",
       effort: sourceType(s.domain, own) === "Reviews & directories" ? "low" : "medium",
       tag: "Citations",
+      category: "Citations",
+      type: sourceType(s.domain, own) === "Forums & communities" ? "Community answer" : "Get listed",
       priority: Math.min(88, 60 + s.citations * 6),
       evidence: [`Source type: ${sourceType(s.domain, own)}`, `${s.citations} citations`],
       steps: [
@@ -155,16 +166,56 @@ function recommendationsFor(brand: Brand, vis: BrandVisibility, audit: AuditRepo
       impact: c.impact,
       effort: c.effort,
       tag: { crawler: "AI crawler access", schema: "Structured data", content: "Answer-ready content", trust: "Trust signals", technical: "Technical", visibility: "Visibility" }[c.category],
+      category: c.category === "content" ? "Content" : c.category === "trust" ? "Reference" : "Technical",
+      type: c.title.replace(/^(Structured data|Content)\s*/i, "").split(/[(:—-]/)[0].trim().slice(0, 28),
       priority: Math.round((c.impact === "high" ? 85 : c.impact === "medium" ? 65 : 45) + (c.effort === "low" ? 8 : 0) - c.score * 20),
       evidence: [`Site audit: ${c.detail.slice(0, 80)}${c.detail.length > 80 ? "…" : ""}`],
       steps: ["Review the finding in the Site audit.", "Ship the fix on your website.", "Re-run the audit to confirm."],
     });
   }
 
+  // 5. Reference profiles AI engines lean on (Wikipedia, YouTube, LinkedIn, X), from the audit's link checks.
+  if (audit) {
+    const linked = audit.checks
+      .filter((c) => c.id === "social-profiles" || c.id === "sameas-links")
+      .map((c) => `${c.detail} ${(c.evidence ?? []).join(" ")}`)
+      .join(" ")
+      .toLowerCase();
+    const cited = new Map(vis.sources.map((x) => [x.domain, x.citations]));
+    const REF = [
+      { key: "wikipedia", label: "Wikipedia", match: /wikipedia\.org|wikidata/, type: "Wikipedia presence", effort: "high" as Impact, title: "Create or improve your Wikipedia presence" },
+      { key: "youtube", label: "YouTube", match: /youtube\.com/, type: "Channel creation", effort: "medium" as Impact, title: "Create or verify your official YouTube channel" },
+      { key: "linkedin", label: "LinkedIn", match: /linkedin\.com/, type: "Profile creation", effort: "low" as Impact, title: "Create or verify your LinkedIn company page" },
+      { key: "x", label: "X", match: /(^|\W)(x\.com|twitter\.com)/, type: "Profile creation", effort: "low" as Impact, title: "Create or verify your official X profile" },
+    ];
+    for (const r of REF) {
+      if (r.match.test(linked)) continue;
+      const cites = [...cited.entries()].filter(([d]) => r.match.test(d)).reduce((n, [, v]) => n + v, 0);
+      recs.push({
+        id: `ref:${r.key}`,
+        title: r.title,
+        detail: `No official ${r.label} profile is linked from your site${cites ? `, yet ${r.label} was cited ${cites} time${cites === 1 ? "" : "s"} in answers for your prompts` : ""}. AI engines use these profiles to confirm who you are.`,
+        impact: cites ? "high" : "medium",
+        effort: r.effort,
+        tag: `${r.label} presence`,
+        category: "Reference",
+        type: r.type,
+        priority: Math.min(80, 44 + cites * 3 + (r.effort === "low" ? 6 : 0)),
+        evidence: [`Platform: ${r.label}`, "Site audit", ...(cites ? [`${cites} citations`] : [])],
+        steps: [
+          `Create or claim the official ${r.label} ${r.key === "wikipedia" ? "entry (or Wikidata item)" : "profile"} using your exact business name.`,
+          "Add your website, address and a clear one-sentence description of what you do.",
+          "Link it from your site footer and add it to the sameAs list in your Organization schema.",
+        ],
+      });
+    }
+  }
+
   const state = brand.recState ?? {};
+  const steps = brand.recSteps ?? {};
   return recs
-    .map((r) => ({ ...r, state: state[r.id] }))
-    .sort((a, b) => Number(Boolean(a.state)) - Number(Boolean(b.state)) || b.priority - a.priority);
+    .map((r) => ({ ...r, state: state[r.id], stepsDone: steps[r.id] ?? [] }))
+    .sort((a, b) => Number(a.state === "done" || a.state === "dismissed") - Number(b.state === "done" || b.state === "dismissed") || b.priority - a.priority);
 }
 
 /**
